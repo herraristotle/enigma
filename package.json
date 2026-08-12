@@ -1,0 +1,24 @@
+{
+  "name": "@mastermind/enigma",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "enigma": "./cli/commands/run.ts",
+    "enigma-ssrf": "./cli/commands/ssrf/index.ts"
+  },
+  "scripts": {
+    "run": "node --experimental-strip-types ./cli/commands/run.ts",
+    "init": "node --experimental-strip-types ./cli/commands/init.ts",
+    "next": "node --experimental-strip-types ./cli/commands/next.ts",
+    "observe": "node --experimental-strip-types ./cli/commands/observe.ts",
+    "discover": "node --experimental-strip-types ./cli/commands/discover/index.ts",
+    "result": "node --experimental-strip-types ./cli/commands/result.ts",
+    "test": "node --experimental-strip-types --test ./tests/**/*.test.ts"
+  },
+  "dependencies": {
+    "puppeteer": "^24.5.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.2"
+  }
+}

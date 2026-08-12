@@ -1,0 +1,460 @@
+<!doctype html><html lang=en-us><head><meta charset=UTF-8><script>document.documentElement.classList.add("js")</script><meta name=viewport content="width=device-width,initial-scale=1"><meta name=google-site-verification content="Fbgf-m_Tiq1_6xZC4HxO-jKDECnI_Pzz6ltvluLC-BI"><meta name=description content="A deep technical exploration of Enigma, an adaptive XSS detection engine that turns WAF evasion into a systematic, machine-driven process using five independent mutation rotors."><title>Enigma: An Autonomous XSS Engine Built on a 5-Rotor Methodology | trace37 labs — offensive security research & services</title>
+<link rel=canonical href=https://labs.trace37.com/blog/enigma-xss-engine/><meta property="og:title" content="Enigma: An Autonomous XSS Engine Built on a 5-Rotor Methodology"><meta property="og:description" content="A deep technical exploration of Enigma, an adaptive XSS detection engine that turns WAF evasion into a systematic, machine-driven process using five independent mutation rotors."><meta property="og:url" content="https://labs.trace37.com/blog/enigma-xss-engine/"><meta property="og:site_name" content="trace37 labs — offensive security research & services"><meta property="og:locale" content="en_US"><meta property="og:type" content="article"><meta property="article:published_time" content="2026-02-04T00:00:00Z"><meta property="article:author" content="trace37"><meta property="article:tag" content="xss"><meta property="article:tag" content="security-tooling"><meta property="article:tag" content="waf-bypass"><meta property="article:tag" content="browser-security"><meta property="article:tag" content="enigma"><meta property="og:image" content="https://labs.trace37.com/images/og-default-v2.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name=twitter:card content="summary_large_image"><meta name=twitter:title content="Enigma: An Autonomous XSS Engine Built on a 5-Rotor Methodology"><meta name=twitter:description content="A deep technical exploration of Enigma, an adaptive XSS detection engine that turns WAF evasion into a systematic, machine-driven process using five independent mutation rotors."><meta name=twitter:image content="https://labs.trace37.com/images/og-default-v2.png"><meta name=twitter:site content="@trace37_labs"><meta name=twitter:creator content="@trace37_labs"><script type=application/ld+json>{"@context":"https://schema.org","@type":"Article","headline":"\"Enigma: An Autonomous XSS Engine Built on a 5-Rotor Methodology\"","description":"\"A deep technical exploration of Enigma, an adaptive XSS detection engine that turns WAF evasion into a systematic, machine-driven process using five independent mutation rotors.\"","url":"\"https://labs.trace37.com/blog/enigma-xss-engine/\"","mainEntityOfPage":{"@type":"WebPage","@id":"\"https://labs.trace37.com/blog/enigma-xss-engine/\""},"datePublished":"2026-02-04T00:00:00Z","dateModified":"2026-02-04T00:00:00Z","author":{"@type":"Person","name":"Paul Reed","url":"https://labs.trace37.com/about/","sameAs":["https://github.com/trace37labs","https://twitter.com/trace37_labs","https://www.linkedin.com/company/trace37/"]},"publisher":{"@type":"Organization","name":"\"trace37 labs — offensive security research \\u0026 services\"","logo":"https://labs.trace37.com/og-image.png"}}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"Person","name":"Paul Reed","alternateName":"trace37","url":"https://labs.trace37.com/about/","sameAs":["https://twitter.com/trace37_labs","https://github.com/trace37labs","https://www.linkedin.com/company/trace37/","https://hackerone.com/trace37"],"jobTitle":"Security Researcher","worksFor":{"@type":"Organization","name":"Trace37","url":"https://mastermind.trace37.com"},"knowsAbout":["bug bounty hunting","penetration testing","web application security","AI-assisted security testing","offensive security research"]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://labs.trace37.com/"},{"@type":"ListItem","position":2,"name":"\"Blog\"","item":"\"https://labs.trace37.com/blog/\""},{"@type":"ListItem","position":3,"name":"\"Enigma: An Autonomous XSS Engine Built on a 5-Rotor Methodology\"","item":"\"https://labs.trace37.com/blog/enigma-xss-engine/\""}]}</script><link rel=preconnect href=https://cdn.jsdelivr.net crossorigin><link rel=preload href=/fonts/geist-latin.woff2 as=font type=font/woff2 crossorigin><link rel=preload href=/fonts/geist-mono-latin.woff2 as=font type=font/woff2 crossorigin><link rel=stylesheet href=/css/style.css><link rel=icon type=image/png sizes=32x32 href=/favicon-32x32.png><link rel=icon type=image/png sizes=16x16 href=/favicon-16x16.png><link rel=apple-touch-icon sizes=180x180 href=/apple-touch-icon.png></head><body><a href=#main-content class=skip-link>skip to content</a><div class=reading-progress id=reading-progress aria-hidden=true></div><button type=button class=back-to-top id=back-to-top aria-label="Back to top">↑</button><div class=t37-scanline></div><div class=t37-grid></div><header><div class=container><div class=header-content><a href=/ class=site-title><span class=t37-pulse></span><span>labs</span>.trace37</a><nav><ul><li><a href=/blog/>blog</a></li><li><a href=/series/trust-transitions/>trust transitions</a></li><li><a href=/cves/>disclosures</a></li><li><a href=/tools/>tools</a></li><li><a href=https://mastermind.trace37.com>services</a></li><li><a href=/about/>about</a></li><li><a href=/private/>private research</a></li><li><a href=/search/>search</a></li></ul></nav></div></div></header><main class="container container-post" id=main-content tabindex=-1><div class=post-page><div class=post-aurora aria-hidden=true><canvas class=hero-aurora aria-hidden=true></canvas>
+<script>(function(){"use strict";if(window.matchMedia("(prefers-reduced-motion: reduce)").matches)return;if(a=document.querySelectorAll("script"),o=a[a.length-1],s=o&&o.previousElementSibling&&o.previousElementSibling.classList.contains("hero-aurora")?o.previousElementSibling:document.querySelector("canvas.hero-aurora"),!s)return;if(e=s.getContext("2d"),!e)return;var e,s,o,a,r,c,l,u,t=0,n=0,i=0;function d(){var e=Math.min(window.devicePixelRatio||1,2);t=s.width=s.offsetWidth*e,n=s.height=s.offsetHeight*e}d(),r=new ResizeObserver(d),r.observe(s),u=document.documentElement;function h(e){return getComputedStyle(u).getPropertyValue(e).trim()}function m(e){var t=e.replace("#","");return t.length===3&&(t=t[0]+t[0]+t[1]+t[1]+t[2]+t[2]),{r:parseInt(t.slice(0,2),16),g:parseInt(t.slice(2,4),16),b:parseInt(t.slice(4,6),16)}}c=[{cx:.2,cy:.35,r:.65,speed:5e-5,phase:0,token:"--success",alpha:.2},{cx:.75,cy:.5,r:.6,speed:4e-5,phase:2.1,token:"--cyan",alpha:.16},{cx:.5,cy:.85,r:.55,speed:6e-5,phase:4.3,token:"--accent",alpha:.11}],l=[{x:.15,y:-.08,angle:.42,width:.4,alpha:.28,speed:12e-5,phase:0,token:"--success"},{x:.62,y:-.05,angle:-.28,width:.32,alpha:.22,speed:9e-5,phase:1.7,token:"--cyan"},{x:.88,y:.1,angle:.55,width:.28,alpha:.19,speed:15e-5,phase:3.2,token:"--success"},{x:.4,y:-.12,angle:-.15,width:.24,alpha:.18,speed:7e-5,phase:5.1,token:"--cyan"}];function f(s){e.clearRect(0,0,t,n);for(var o,a,r,d,u,p,g,v,j,y,_,w,O,x,C,E,b=0;b<c.length;b++)r=c[b],E=Math.sin(s*r.speed+r.phase),j=(r.cx+E*.08)*t,v=(r.cy+Math.cos(s*r.speed*.7+r.phase)*.06)*n,w=r.r*Math.min(t,n),d=m(h(r.token)),p=e.createRadialGradient(j,v,0,j,v,w),p.addColorStop(0,"rgba("+d.r+","+d.g+","+d.b+","+r.alpha+")"),p.addColorStop(.45,"rgba("+d.r+","+d.g+","+d.b+","+r.alpha*.45+")"),p.addColorStop(1,"rgba("+d.r+","+d.g+","+d.b+",0)"),e.fillStyle=p,e.fillRect(0,0,t,n);for(g=0;g<l.length;g++)a=l[g],O=Math.sin(s*a.speed+a.phase)*.06,x=(a.x+O)*t,C=a.y*n,o=m(h(a.token)),y=Math.sqrt(t*t+n*n),_=a.width*t,e.save(),e.translate(x,C),e.rotate(a.angle+Math.sin(s*a.speed*.5+a.phase)*.04),u=e.createLinearGradient(0,0,0,y),u.addColorStop(0,"rgba("+o.r+","+o.g+","+o.b+",0)"),u.addColorStop(.12,"rgba("+o.r+","+o.g+","+o.b+","+a.alpha+")"),u.addColorStop(.42,"rgba("+o.r+","+o.g+","+o.b+","+a.alpha*.55+")"),u.addColorStop(.72,"rgba("+o.r+","+o.g+","+o.b+","+a.alpha*.18+")"),u.addColorStop(1,"rgba("+o.r+","+o.g+","+o.b+",0)"),e.fillStyle=u,e.fillRect(-_/2,0,_,y),e.restore();i=requestAnimationFrame(f)}i=requestAnimationFrame(f),window.addEventListener("pagehide",function(){cancelAnimationFrame(i),r.disconnect()},{once:!0})})()</script></div><div class=post-layout><div class=post-main><article><header class=post-header><div class=post-meta>2026-02-04
+· 20 min read</div><h1>Enigma: An Autonomous XSS Engine Built on a 5-Rotor Methodology</h1><p>A deep technical exploration of Enigma, an adaptive XSS detection engine that turns WAF evasion into a systematic, machine-driven process using five independent mutation rotors.</p><div class=tags><a href=/tags/xss/ class=tag>xss</a><a href=/tags/security-tooling/ class=tag>security-tooling</a><a href=/tags/waf-bypass/ class=tag>waf-bypass</a><a href=/tags/browser-security/ class=tag>browser-security</a><a href=/tags/enigma/ class=tag>enigma</a></div></header><div class=post-content><p>Cross-site scripting remains one of the most persistent vulnerability classes on the web. Not because we lack detection tools — I have dozens — but because the tools I have are fundamentally dumb. They throw wordlists at endpoints and hope something sticks. When a WAF blocks <code>&lt;script>alert(1)&lt;/script></code>, they have no idea <em>why</em> it was blocked, and they have no strategy for what to try next.</p><p>Enigma takes a different approach. It&rsquo;s an autonomous engine — one that probes, learns what the WAF blocks, and systematically works through bypass cascades until it finds execution or exhausts all known techniques. It doesn&rsquo;t guess. It asks questions, observes answers, and adapts.</p><p>This post walks through how the engine works, why the Enigma machine metaphor fits perfectly, and the decision trees that drive its bypass logic.</p><h2 id=credit><a class=heading-anchor href=#credit aria-label="Link to section: Credit">#</a>
+Credit</h2><p>The underlying methodology — the &ldquo;5-Rotor&rdquo; framework, the cascade orders, the systematic context-aware approach to XSS — are based on the work of <a href=https://x.com/garaborr>Gareth Heyes</a> (<a href=https://portswigger.net/research/gareth-heyes>@garethheyes</a>), a researcher at PortSwigger. His book <a href=https://www.amazon.co.uk/JavaScript-Hackers-Learn-Think-Like/dp/1119860555><em>JavaScript for Hackers</em></a> provides the most systematic framework for XSS that exists. I built Enigma to encode that methodology into something a machine can execute autonomously.</p><h2 id=why-enigma-the-rotor-metaphor><a class=heading-anchor href=#why-enigma-the-rotor-metaphor aria-label="Link to section: Why &ldquo;Enigma&rdquo;? The Rotor Metaphor">#</a>
+Why &ldquo;Enigma&rdquo;? The Rotor Metaphor</h2><p>The name isn&rsquo;t arbitrary. The original Enigma machine used mechanical rotors — wheels that could each be set independently, and whose combined positions determined the cipher output. Change one rotor, get a different result. Change two, get something entirely different. The combinatorial explosion of rotor positions is what made Enigma hard to crack.</p><p>XSS bypass works the same way. A payload that achieves execution is the product of five independent decisions:</p><ol><li><strong>Where</strong> does the input land? (Context)</li><li><strong>What</strong> is the WAF blocking? (Blockers)</li><li><strong>How</strong> should characters be represented? (Encoding)</li><li><strong>What</strong> syntax structure carries the payload? (Structure)</li><li><strong>How</strong> does the JavaScript fire? (Execution)</li></ol><p>Each decision is a rotor. Each rotor has multiple positions. The WAF is the machine you&rsquo;re trying to break and then find the permutation that enables the &lsquo;malicious script&rsquo; to run. Just like Bletchley Park&rsquo;s approach, you don&rsquo;t brute-force all combinations — you use what you learn from each test to constrain the search space.</p><pre tabindex=0><code class=language-mermaid data-lang=mermaid>%%{init: {&#39;theme&#39;: &#39;dark&#39;, &#39;themeVariables&#39;: { &#39;lineColor&#39;: &#39;#58a6ff&#39;, &#39;primaryTextColor&#39;: &#39;#fff&#39;}}}%%
+graph LR
+    INPUT[&#34;User Input&#34;] --&gt; R1
+
+    subgraph ENIGMA[&#34;The 5 Rotors&#34;]
+        R1[&#34;R1: Context&lt;br/&gt;Where does input land?&#34;]
+        R2[&#34;R2: Blockers&lt;br/&gt;What does WAF stop?&#34;]
+        R3[&#34;R3: Encoding&lt;br/&gt;Character representation&#34;]
+        R4[&#34;R4: Structure&lt;br/&gt;Syntax-level bypass&#34;]
+        R5[&#34;R5: Execution&lt;br/&gt;How JS fires&#34;]
+    end
+
+    R1 --&gt; R2 --&gt; R3 --&gt; R4 --&gt; R5
+
+    R5 --&gt; OUTPUT[&#34;XSS Payload&#34;]
+
+    style INPUT fill:#1f2937,stroke:#58a6ff,stroke-width:2px,color:#fff
+    style OUTPUT fill:#1f2937,stroke:#58a6ff,stroke-width:2px,color:#fff
+    style R1 fill:#3b5998,stroke:#58a6ff,stroke-width:2px,color:#fff
+    style R2 fill:#2a9d8f,stroke:#58a6ff,stroke-width:2px,color:#fff
+    style R3 fill:#e9c46a,stroke:#58a6ff,stroke-width:2px,color:#000
+    style R4 fill:#f4a261,stroke:#58a6ff,stroke-width:2px,color:#000
+    style R5 fill:#e76f51,stroke:#58a6ff,stroke-width:2px,color:#fff
+</code></pre><h2 id=how-enigma-runs-the-autonomous-loop><a class=heading-anchor href=#how-enigma-runs-the-autonomous-loop aria-label="Link to section: How Enigma Runs: The Autonomous Loop">#</a>
+How Enigma Runs: The Autonomous Loop</h2><p>Before diving into each rotor, it helps to see the full picture. Enigma is a Puppeteer-based engine. It opens a real browser, sends payloads, observes real DOM responses, and adapts in real time. No LLM in the loop during execution — the decision logic is pure TypeScript.</p><p>The flow looks like this:</p><pre tabindex=0><code class=language-mermaid data-lang=mermaid>%%{init: {&#39;theme&#39;: &#39;dark&#39;, &#39;themeVariables&#39;: { &#39;lineColor&#39;: &#39;#58a6ff&#39;}}}%%
+flowchart TD
+    START([&#34;enigma run URL PARAM&#34;]) --&gt; PROBE[&#34;Phase 1: DETECT CONTEXT&lt;br/&gt;Send unique probe string&#34;]
+    PROBE --&gt; ANALYZE{&#34;Where does&lt;br/&gt;probe reflect?&#34;}
+
+    ANALYZE --&gt;|&#34;Between tags&#34;| CTX_HTML[&#34;html_content&#34;]
+    ANALYZE --&gt;|&#34;Inside attribute&#34;| CTX_ATTR[&#34;html_attribute&#34;]
+    ANALYZE --&gt;|&#34;Inside JS string&#34;| CTX_SCRIPT[&#34;script_string&#34;]
+    ANALYZE --&gt;|&#34;Inside href&#34;| CTX_HREF[&#34;href_attribute&#34;]
+    ANALYZE --&gt;|&#34;Inside SVG&#34;| CTX_SVG[&#34;svg_context&#34;]
+
+    CTX_HTML --&gt; BASELINE[&#34;Phase 2: BASELINE TEST&lt;br/&gt;Send context-specific payload&#34;]
+    CTX_ATTR --&gt; BASELINE
+    CTX_SCRIPT --&gt; BASELINE
+    CTX_HREF --&gt; BASELINE
+    CTX_SVG --&gt; BASELINE
+
+    BASELINE --&gt; RESULT{Result?}
+
+    RESULT --&gt;|&#34;EXECUTED&#34;| SUCCESS([&#34;XSS Found!&#34;])
+    RESULT --&gt;|&#34;BLOCKED&#34;| BINARY[&#34;Phase 3: BINARY SEARCH&lt;br/&gt;Decompose and test components&#34;]
+    RESULT --&gt;|&#34;REFLECTED&#34;| CSP{&#34;CSP&lt;br/&gt;blocking?&#34;}
+    CSP --&gt;|Yes| CSP_BYPASS[&#34;Try CSP bypasses&#34;]
+    CSP --&gt;|No| BINARY
+
+    BINARY --&gt; MUTATE[&#34;Phase 4: MUTATION LOOP&lt;br/&gt;Composer generates bypass&#34;]
+
+    MUTATE --&gt; MRESULT{Result?}
+    MRESULT --&gt;|&#34;EXECUTED&#34;| SUCCESS
+    MRESULT --&gt;|&#34;BLOCKED&#34;| LEARN[&#34;Binary search again&#34;]
+    LEARN --&gt; PIVOT{&#34;4+ tags blocked?&#34;}
+    PIVOT --&gt;|Yes| ENUM[&#34;Phase 5: ENUMERATE&#34;]
+    PIVOT --&gt;|No| MUTATE
+
+    MRESULT --&gt;|&#34;Exhausted&#34;| ENUM
+
+    ENUM --&gt; COMBINE[&#34;Phase 6: COMBINE&#34;]
+    COMBINE --&gt; FINAL{Result?}
+    FINAL --&gt;|&#34;EXECUTED&#34;| SUCCESS
+    FINAL --&gt;|&#34;All exhausted&#34;| FAIL([&#34;Not Vulnerable&#34;])
+
+    style START fill:#1f2937,stroke:#58a6ff,stroke-width:2px,color:#fff
+    style SUCCESS fill:#22c55e,stroke:#fff,stroke-width:3px,color:#000
+    style FAIL fill:#ef4444,stroke:#fff,stroke-width:2px,color:#fff
+    style BINARY fill:#2a9d8f,stroke:#58a6ff,stroke-width:2px,color:#fff
+    style MUTATE fill:#e76f51,stroke:#58a6ff,stroke-width:2px,color:#fff
+    style ENUM fill:#f4a261,stroke:#58a6ff,stroke-width:2px,color:#000
+</code></pre><p>The key insight is that this is not a linear pipeline. It&rsquo;s a <em>learning loop</em>. Every blocked payload teaches the engine something. That knowledge accumulates and constrains future decisions, making each subsequent attempt more informed than the last.</p><h3 id=enigma-in-action><a class=heading-anchor href=#enigma-in-action aria-label="Link to section: Enigma in Action">#</a>
+Enigma in Action</h3><video autoplay loop muted playsinline style="width:100%;border-radius:8px;margin:1.5rem 0;border:1px solid var(--border)">
+<source src=/videos/enigma-xss-demo.mp4 type=video/mp4></video><h2 id=rotor-1-context-detection><a class=heading-anchor href=#rotor-1-context-detection aria-label="Link to section: Rotor 1: Context Detection">#</a>
+Rotor 1: Context Detection</h2><p>The first question the engine asks: <em>where does my input land in the HTML response?</em></p><p>This matters enormously. A payload that works between tags (<code>&lt;div>INPUT&lt;/div></code>) will fail inside an attribute (<code>value="INPUT"</code>). A payload for JavaScript string context (<code>var x = 'INPUT'</code>) is syntactically meaningless in HTML body context. Getting context wrong means every subsequent rotor is misconfigured.</p><p>Enigma sends a unique probe string and analyzes the response with pattern matching against 40+ injection contexts:</p><pre tabindex=0><code class=language-mermaid data-lang=mermaid>%%{init: {&#39;theme&#39;: &#39;dark&#39;, &#39;themeVariables&#39;: { &#39;lineColor&#39;: &#39;#58a6ff&#39;}}}%%
+flowchart TD
+    PROBE[&#34;Send probe: enigma_probe_123&#34;] --&gt; FIND{&#34;Where does probe&lt;br/&gt;appear in response?&#34;}
+
+    FIND --&gt;|Between tags| HTML[&#34;html_content&#34;]
+    FIND --&gt;|Inside attribute| ATTR[&#34;html_attribute&#34;]
+    FIND --&gt;|Inside JS string| SCRIPT[&#34;script_string&#34;]
+    FIND --&gt;|Inside href/src| HREF[&#34;href_attribute&#34;]
+    FIND --&gt;|Inside SVG| SVG[&#34;svg_context&#34;]
+    FIND --&gt;|Inside event handler| EVENT[&#34;event_handler&#34;]
+    FIND --&gt;|Hidden input| HIDDEN[&#34;hidden_input&#34;]
+    FIND --&gt;|Template expression| FRAMEWORK[&#34;framework_template&#34;]
+
+    style PROBE fill:#1f2937,stroke:#58a6ff,stroke-width:2px,color:#fff
+    style FIND fill:#1f2937,stroke:#58a6ff,stroke-width:2px,color:#fff
+    style HTML fill:#3b5998,stroke:#58a6ff,stroke-width:2px,color:#fff
+    style ATTR fill:#2a9d8f,stroke:#58a6ff,stroke-width:2px,color:#fff
+    style SCRIPT fill:#e9c46a,stroke:#58a6ff,stroke-width:2px,color:#000
+    style HREF fill:#f4a261,stroke:#58a6ff,stroke-width:2px,color:#000
+    style SVG fill:#e76f51,stroke:#58a6ff,stroke-width:2px,color:#fff
+    style EVENT fill:#9333ea,stroke:#58a6ff,stroke-width:2px,color:#fff
+    style HIDDEN fill:#3b82f6,stroke:#58a6ff,stroke-width:2px,color:#fff
+    style FRAMEWORK fill:#ef4444,stroke:#58a6ff,stroke-width:2px,color:#fff
+</code></pre><p>The detection uses a priority chain — it checks for more specific contexts first (like <code>href_attribute</code> or <code>hidden_input</code>) before falling back to generic ones like <code>html_content</code>. It also uses a dual-probe strategy: the first probe includes angle brackets to trigger WAF detection. If that probe is blocked entirely, a second alphanumeric-only probe runs to detect context even when the WAF strips XSS-like characters.</p><p>For each detected context, the engine selects a context-appropriate <strong>baseline payload</strong> — the simplest possible XSS vector for that context. The baseline is the &ldquo;first shot.&rdquo; If it executes, I&rsquo;m done. If it&rsquo;s blocked, we enter the learning phase.</p><h2 id=rotor-2-blocker-detection-via-binary-search><a class=heading-anchor href=#rotor-2-blocker-detection-via-binary-search aria-label="Link to section: Rotor 2: Blocker Detection via Binary Search">#</a>
+Rotor 2: Blocker Detection via Binary Search</h2><p>When a baseline payload gets blocked, most tools would move to the next payload in a wordlist. Enigma does something different: it figures out <em>exactly</em> what triggered the block.</p><p>The binary search process decomposes a blocked payload into its atomic components and tests each one in isolation:</p><pre tabindex=0><code class=language-mermaid data-lang=mermaid>%%{init: {&#39;theme&#39;: &#39;dark&#39;, &#39;themeVariables&#39;: { &#39;lineColor&#39;: &#39;#58a6ff&#39;}}}%%
+flowchart LR
+    BLOCKED[&#34;Blocked payload&#34;] --&gt; DECOMPOSE[&#34;Decompose&#34;]
+
+    DECOMPOSE --&gt; C1[&#34;&amp;lt;img&#34;]
+    DECOMPOSE --&gt; C2[&#34;onerror&#34;]
+    DECOMPOSE --&gt; C3[&#34;alert&#34;]
+    DECOMPOSE --&gt; C4[&#34;parens&#34;]
+
+    C1 --&gt; T1{&#34;Blocked?&#34;}
+    C2 --&gt; T2{&#34;Blocked?&#34;}
+    C3 --&gt; T3{&#34;Blocked?&#34;}
+    C4 --&gt; T4{&#34;Blocked?&#34;}
+
+    T1 --&gt;|&#34;No&#34;| OK1[&#34;✓ Tag OK&#34;]
+    T2 --&gt;|&#34;No&#34;| OK2[&#34;✓ Event OK&#34;]
+    T3 --&gt;|&#34;Yes&#34;| BLOCK3[&#34;✗ KEYWORD cascade&#34;]
+    T4 --&gt;|&#34;Yes&#34;| BLOCK4[&#34;✗ PAREN cascade&#34;]
+
+    style BLOCKED fill:#ef4444,stroke:#58a6ff,stroke-width:2px,color:#fff
+    style DECOMPOSE fill:#1f2937,stroke:#58a6ff,stroke-width:2px,color:#fff
+    style BLOCK3 fill:#ef4444,stroke:#fff,stroke-width:2px,color:#fff
+    style BLOCK4 fill:#ef4444,stroke:#fff,stroke-width:2px,color:#fff
+    style OK1 fill:#22c55e,stroke:#fff,stroke-width:2px,color:#000
+    style OK2 fill:#22c55e,stroke:#fff,stroke-width:2px,color:#000
+</code></pre><p>The core principle: <em>don&rsquo;t guess — test.</em> Once the engine knows that <code>alert</code> and <code>(</code> are the WAF triggers, it doesn&rsquo;t waste time trying payloads that contain those strings. Instead, it enters the appropriate bypass cascades.</p><p>The binary search system also prevents false positives. It requires 2+ failures with 0 successes, AND at least one other component succeeding, before it marks something as confirmed blocked. This prevents network errors from being misidentified as WAF blocks.</p><h2 id=rotor-3-encoding><a class=heading-anchor href=#rotor-3-encoding aria-label="Link to section: Rotor 3: Encoding">#</a>
+Rotor 3: Encoding</h2><p>When specific characters are blocked, encoding transforms their representation. The engine supports multiple encoding layers:</p><table><thead><tr><th>Encoding</th><th>Example</th><th>When Used</th></tr></thead><tbody><tr><td>HTML decimal</td><td><code>&amp;#60;</code> → <code>&lt;</code></td><td>WAF blocks literal <code>&lt;</code> but app decodes entities</td></tr><tr><td>HTML hex</td><td><code>&amp;#x3c;</code> → <code>&lt;</code></td><td>Alternative entity format</td></tr><tr><td>HTML named</td><td><code>&amp;lt;</code> → <code>&lt;</code></td><td>Most common entity form</td></tr><tr><td>HTML no-semicolon</td><td><code>&amp;#60</code> → <code>&lt;</code></td><td>WAFs that only match <code>&amp;#NN;</code> with semicolon</td></tr><tr><td>HTML leading zeros</td><td><code>&amp;#00060;</code> → <code>&lt;</code></td><td>WAFs that fail on zero-padded entities</td></tr><tr><td>JS unicode</td><td><code>\u003c</code> → <code>&lt;</code></td><td>Inside JavaScript contexts</td></tr><tr><td>JS hex</td><td><code>\x3c</code> → <code>&lt;</code></td><td>Inside JavaScript contexts</td></tr><tr><td>URL encode</td><td><code>%3C</code> → <code>&lt;</code></td><td>Server-side URL decoding</td></tr><tr><td>Double URL</td><td><code>%253C</code> → <code>%3C</code> → <code>&lt;</code></td><td>WAF decodes once, app decodes twice</td></tr><tr><td>Base64</td><td><code>PHNjcmlwdD4=</code></td><td>Data URI contexts</td></tr></tbody></table><p>The key insight about encoding: it only works when there&rsquo;s a <em>decode step</em> between the WAF check and the browser rendering. If the WAF and the browser see the same bytes, encoding achieves nothing. Enigma&rsquo;s composer infers encoding effectiveness from the binary search results — if <code>&lt;</code> is blocked as a literal but HTML entities in the same response are decoded by the browser, the engine knows to apply HTML encoding.</p><h2 id=rotor-4-structure--where-it-gets-interesting><a class=heading-anchor href=#rotor-4-structure--where-it-gets-interesting aria-label="Link to section: Rotor 4: Structure — Where It Gets Interesting">#</a>
+Rotor 4: Structure — Where It Gets Interesting</h2><p>Structure mutations are where the methodology gets deep. This rotor restructures payload <em>syntax</em> to bypass pattern-matching filters, and it implements some of the most creative techniques in JavaScript security research.</p><h3 id=the-parentheses-bypass-cascade><a class=heading-anchor href=#the-parentheses-bypass-cascade aria-label="Link to section: The Parentheses Bypass Cascade">#</a>
+The Parentheses Bypass Cascade</h3><p>Perhaps the most elegant cascade. When <code>(</code> and <code>)</code> are blocked, you can&rsquo;t call <code>alert(1)</code>. But JavaScript has at least 10 alternative invocation patterns:</p><pre tabindex=0><code class=language-mermaid data-lang=mermaid>%%{init: {&#39;theme&#39;: &#39;dark&#39;, &#39;themeVariables&#39;: { &#39;lineColor&#39;: &#39;#58a6ff&#39;}}}%%
+flowchart TD
+    BLOCKED[&#34;Parentheses blocked&#34;] --&gt; B1{&#34;Backticks?&#34;}
+
+    B1 --&gt;|Yes| TICK[&#34;alert`1`&#34;]
+    B1 --&gt;|No| B2{&#34;throw?&#34;}
+
+    B2 --&gt;|Yes| THROW[&#34;throw onerror=alert,1&#34;]
+    B2 --&gt;|No| B3{&#34;+ operator?&#34;}
+
+    B3 --&gt;|Yes| VALUEOF[&#34;valueOf coercion&#34;]
+    B3 --&gt;|No| B4{&#34;instanceof?&#34;}
+
+    B4 --&gt;|Yes| INSTANCE[&#34;Symbol.hasInstance&#34;]
+    B4 --&gt;|No| B5{&#34;setInterval?&#34;}
+
+    B5 --&gt;|Yes| SETINT[&#34;Timer + template&#34;]
+    B5 --&gt;|No| B6{&#34;Reflect?&#34;}
+
+    B6 --&gt;|Yes| REFLECT[&#34;Reflect.apply&#34;]
+    B6 --&gt;|No| B7{&#34;HTML context?&#34;}
+
+    B7 --&gt;|Yes| ENTITY[&#34;&amp;lpar; &amp;rpar;&#34;]
+    B7 --&gt;|No| JSFUCK[&#34;JSFuck&#34;]
+
+    style BLOCKED fill:#ef4444,stroke:#58a6ff,stroke-width:2px,color:#fff
+    style TICK fill:#22c55e,stroke:#fff,stroke-width:2px,color:#000
+    style THROW fill:#22c55e,stroke:#fff,stroke-width:2px,color:#000
+    style VALUEOF fill:#22c55e,stroke:#fff,stroke-width:2px,color:#000
+    style INSTANCE fill:#22c55e,stroke:#fff,stroke-width:2px,color:#000
+    style SETINT fill:#16a34a,stroke:#fff,stroke-width:2px,color:#fff
+    style REFLECT fill:#16a34a,stroke:#fff,stroke-width:2px,color:#fff
+    style ENTITY fill:#3b82f6,stroke:#fff,stroke-width:2px,color:#fff
+    style JSFUCK fill:#9333ea,stroke:#fff,stroke-width:2px,color:#fff
+</code></pre><p>Each level in this cascade represents a progressively more exotic technique. The engine tries the simplest first — <code>alert</code>1`` is a single-character change from <code>alert(1)</code>. Only when simple approaches fail does it escalate to techniques like <code>Symbol.hasInstance</code> overriding or <code>Reflect.apply.call</code> with tagged templates.</p><p>The JSFuck path is the nuclear option. When nearly all alphanumeric characters are blocked but <code>[]()!+</code> remain available, Enigma&rsquo;s JSFuck encoder can produce arbitrary JavaScript using only those six characters. It works through JavaScript type coercion: <code>(![]+[])</code> evaluates to the string <code>"false"</code>, from which you can extract individual letters. It&rsquo;s verbose — <code>alert(1)</code> becomes thousands of characters — but it bypasses virtually any character-level filter.</p><h3 id=dom-clobbering><a class=heading-anchor href=#dom-clobbering aria-label="Link to section: DOM Clobbering">#</a>
+DOM Clobbering</h3><p>When JavaScript execution is blocked by CSP but HTML injection is still possible, DOM clobbering overrides global variables using HTML <code>id</code> attributes:</p><div class=highlight><pre tabindex=0 style=color:#e6edf3;background-color:#0d1117;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-javascript data-lang=javascript><span style=display:flex><span><span style=color:#8b949e;font-style:italic>// Injecting &lt;a id=x&gt; creates window.x
+</span></span></span><span style=display:flex><span><span style=color:#8b949e;font-style:italic>// Injecting &lt;a id=x&gt;&lt;a id=x name=y href=&#34;javascript:alert(1)&#34;&gt;
+</span></span></span><span style=display:flex><span><span style=color:#8b949e;font-style:italic>// creates a collection where x.y resolves to the href value
+</span></span></span></code></pre></div><p>The engine generates clobbering payloads targeting specific application code patterns — if the app does <code>document.getElementById('config').src</code>, clobbering <code>config</code> with a controlled element hijacks the URL.</p><h3 id=brute-logic-filter-exploitation><a class=heading-anchor href=#brute-logic-filter-exploitation aria-label="Link to section: Brute Logic Filter Exploitation">#</a>
+Brute Logic Filter Exploitation</h3><p>The engine also implements filter exploitation strategies from Brute Logic&rsquo;s research (brutelogic.net):</p><ul><li><strong>Regex decoys</strong> — prepend attributes that trigger early WAF regex termination</li><li><strong>Attribute doubling</strong> — the WAF inspects the first (empty) attribute; the browser uses the second (malicious) one</li><li><strong>Tag boundary confusion</strong> — <code>id=">"></code> makes the WAF see a closed tag while the browser keeps parsing</li><li><strong>Form feed spacers</strong> — <code>\x0c</code> is valid HTML whitespace but most WAFs don&rsquo;t recognize it</li></ul><h2 id=rotor-5-execution><a class=heading-anchor href=#rotor-5-execution aria-label="Link to section: Rotor 5: Execution">#</a>
+Rotor 5: Execution</h2><p>The final rotor determines <em>how</em> the JavaScript fires. This matters because many WAFs block common event handlers like <code>onerror</code> or <code>onload</code>, and many modern payloads need to fire without user interaction (auto-fire).</p><pre tabindex=0><code class=language-mermaid data-lang=mermaid>%%{init: {&#39;theme&#39;: &#39;dark&#39;, &#39;themeVariables&#39;: { &#39;lineColor&#39;: &#39;#58a6ff&#39;}}}%%
+flowchart TD
+    NEED[&#34;Need JS execution&#34;] --&gt; AUTO{&#34;Auto-fire?&#34;}
+
+    AUTO --&gt;|Yes| A1{&#34;onerror?&#34;}
+    A1 --&gt;|Blocked| A2{&#34;onload?&#34;}
+    A2 --&gt;|Blocked| A3{&#34;ontoggle?&#34;}
+    A3 --&gt;|Blocked| A4{&#34;onfocus?&#34;}
+    A4 --&gt;|Blocked| A5{&#34;onbegin?&#34;}
+    A5 --&gt;|Blocked| A6{&#34;onanimationstart?&#34;}
+    A6 --&gt;|Blocked| A7{&#34;popover API?&#34;}
+    A7 --&gt;|Blocked| A8{&#34;accesskey?&#34;}
+
+    A1 --&gt;|OK| E1[&#34;img onerror&#34;]
+    A2 --&gt;|OK| E2[&#34;svg onload&#34;]
+    A3 --&gt;|OK| E3[&#34;details ontoggle&#34;]
+    A4 --&gt;|OK| E4[&#34;input onfocus&#34;]
+    A5 --&gt;|OK| E5[&#34;animate onbegin&#34;]
+    A6 --&gt;|OK| E6[&#34;CSS animation&#34;]
+    A7 --&gt;|OK| E7[&#34;onbeforetoggle&#34;]
+    A8 --&gt;|OK| E8[&#34;accesskey+onclick&#34;]
+
+    AUTO --&gt;|No| INT[&#34;onclick, onmouseover&#34;]
+
+    style NEED fill:#1f2937,stroke:#58a6ff,stroke-width:2px,color:#fff
+    style E1 fill:#22c55e,stroke:#fff,stroke-width:2px,color:#000
+    style E2 fill:#22c55e,stroke:#fff,stroke-width:2px,color:#000
+    style E3 fill:#22c55e,stroke:#fff,stroke-width:2px,color:#000
+    style E4 fill:#22c55e,stroke:#fff,stroke-width:2px,color:#000
+    style E5 fill:#16a34a,stroke:#fff,stroke-width:2px,color:#fff
+    style E6 fill:#16a34a,stroke:#fff,stroke-width:2px,color:#fff
+    style E7 fill:#3b82f6,stroke:#fff,stroke-width:2px,color:#fff
+    style E8 fill:#9333ea,stroke:#fff,stroke-width:2px,color:#fff
+    style INT fill:#6b7280,stroke:#58a6ff,stroke-width:2px,color:#fff
+</code></pre><p>The cascade here goes from universally-supported events down to browser-specific and interaction-requiring ones. Chrome&rsquo;s popover API (<code>onbeforetoggle</code>) and Firefox&rsquo;s <code>onafterscriptexecute</code> are particularly interesting because they&rsquo;re relatively new and many WAFs don&rsquo;t know about them.</p><p>The engine also implements browser-specific execution methods:</p><ul><li><strong>Chrome</strong>: The popover API enables XSS on <code>type=hidden</code> inputs — previously considered unexploitable. The <code>outline</code> CSS transition trick triggers <code>ontransitionend</code> via <code>autofocus</code>.</li><li><strong>Firefox</strong>: <code>onafterscriptexecute</code> fires automatically after any <code>&lt;script></code> tag executes. Self-closing SVG script with <code>href</code> attribute (<code>&lt;svg>&lt;script href="data:,alert(1)"/></code>) is Firefox-exclusive.</li><li><strong>SVG entity execution</strong>: Inside SVG context, HTML entities in <code>&lt;script></code> tags are decoded before execution. So <code>&lt;svg>&lt;script>&amp;#97;lert(1)&lt;/script>&lt;/svg></code> executes <code>alert(1)</code> — a bypass that doesn&rsquo;t work in HTML&rsquo;s <code>&lt;script></code> because HTML&rsquo;s parser doesn&rsquo;t decode entities there.</li></ul><h2 id=the-composer-orchestrating-the-rotors><a class=heading-anchor href=#the-composer-orchestrating-the-rotors aria-label="Link to section: The Composer: Orchestrating the Rotors">#</a>
+The Composer: Orchestrating the Rotors</h2><p>The <code>composer.ts</code> module is the brain. It takes the current state — detected context, confirmed WAF blocks, all previously tested payloads, any partial successes — and decides what to try next.</p><p>Its intelligence comes from three systems:</p><h3 id=1-blocker-inference><a class=heading-anchor href=#1-blocker-inference aria-label="Link to section: 1. Blocker Inference">#</a>
+1. Blocker Inference</h3><p>Rather than just recording what the binary search found, the composer <em>infers</em> broader patterns from the data. If <code>&lt;img</code> is always blocked and <code>&lt;svg</code> is always blocked, it infers that the angle bracket <code>&lt;</code> itself might be the trigger. If <code>onerror</code> and <code>onload</code> are blocked but other attributes pass, it infers event handler filtering.</p><p>The inference requires statistical evidence — 2+ failures with 0 successes AND at least one other test succeeding. This prevents network errors from polluting the knowledge base.</p><h3 id=2-partial-success-detection><a class=heading-anchor href=#2-partial-success-detection aria-label="Link to section: 2. Partial Success Detection">#</a>
+2. Partial Success Detection</h3><p>The system tracks &ldquo;footholds&rdquo; — parts of a payload that got through even when the full payload failed. If <code>&lt;img onerror=alert(1)></code> is reflected as <code>&lt;img ></code> (tag rendered, event stripped), the engine records <code>tag: img</code> as a foothold and generates mutations that keep the working tag but try different events.</p><p>The principle: <em>build on what works.</em> Don&rsquo;t abandon a partially-successful approach — iterate on it.</p><h3 id=3-cascade-selection><a class=heading-anchor href=#3-cascade-selection aria-label="Link to section: 3. Cascade Selection">#</a>
+3. Cascade Selection</h3><p>The composer maintains canonical cascade orders:</p><pre tabindex=0><code>EVENT_CASCADE:
+  onerror → onload → ontoggle → onfocus → onbegin
+  → onanimationstart → onafterscriptexecute
+
+KEYWORD_CASCADE:
+  alert → confirm → prompt → print
+  → eval(atob(...)) → String.fromCharCode(...)
+
+PAREN_CASCADE:
+  backticks → throw+onerror → valueOf → hasInstance
+  → setInterval template → replace template
+  → Reflect.apply → Reflect.set → HTML entities → dynamic import
+
+SPACE_CASCADE:
+  tab → newline → slash → formfeed → vertical tab → JS comment
+</code></pre><p>The composer never re-tries something it knows is blocked. It never tries a technique incompatible with the detected context. And it prioritizes simpler techniques first — the <code>ROTOR_WEIGHTS</code> system assigns higher priority to Rotor 2 (blocker alternatives) over Rotor 4 (structure mutations), ensuring <code>confirm</code> is tried before <code>Symbol.hasInstance</code>.</p><h2 id=beyond-url-parameters-the-discover-command><a class=heading-anchor href=#beyond-url-parameters-the-discover-command aria-label="Link to section: Beyond URL Parameters: The Discover Command">#</a>
+Beyond URL Parameters: The Discover Command</h2><p>A critical architectural decision in Enigma is that XSS doesn&rsquo;t just live in URL query parameters. The <code>discover</code> command integrates with Caido (an HTTP proxy) to find injection points across the full HTTP request:</p><table><thead><tr><th>Injection Surface</th><th>Examples</th><th>Why It Matters</th></tr></thead><tbody><tr><td><strong>Headers</strong></td><td>Referer, X-Forwarded-For, User-Agent</td><td>Reflected in error pages, logs, admin panels</td></tr><tr><td><strong>Cookies</strong></td><td>theme, language, debug, preview</td><td>Often rendered directly in UI</td></tr><tr><td><strong>Body fields</strong></td><td>name, comment, message, callback</td><td>Form submissions, API calls</td></tr><tr><td><strong>Path segments</strong></td><td><code>/page.php/PAYLOAD</code></td><td>PHP_SELF reflection, path routing</td></tr><tr><td><strong>Query params</strong></td><td><code>?q=PAYLOAD</code></td><td>The traditional surface (only ~40% of real-world XSS)</td></tr></tbody></table><p>The discover command pattern-matches HTTP traffic against databases of known XSS-prone parameters, scores each potential injection point by likelihood, and generates ready-to-run <code>enigma run</code> commands.</p><h2 id=dom-xss-sink-hooks><a class=heading-anchor href=#dom-xss-sink-hooks aria-label="Link to section: DOM XSS: Sink Hooks">#</a>
+DOM XSS: Sink Hooks</h2><p>For DOM-based XSS, Enigma injects a monitoring script into every page via Puppeteer&rsquo;s <code>evaluateOnNewDocument()</code>. This script monkey-patches 30+ dangerous DOM APIs to track taint flow:</p><ul><li><strong>HTML injection sinks</strong>: <code>innerHTML</code>, <code>outerHTML</code>, <code>document.write</code>, <code>insertAdjacentHTML</code></li><li><strong>Script execution sinks</strong>: <code>eval</code>, <code>Function()</code>, <code>setTimeout(string)</code>, <code>setInterval(string)</code></li><li><strong>Navigation sinks</strong>: <code>location.href</code>, <code>location.assign</code>, <code>location.replace</code></li><li><strong>jQuery sinks</strong>: <code>$().html()</code>, <code>$().append()</code>, <code>$()</code> constructor (selector injection)</li></ul><p>One particularly tricky technical challenge: when a payload triggers <code>location.href = "javascript:alert(1)"</code>, the page navigates away, destroying all in-memory JavaScript state — including the monitoring hooks. Enigma solves this by serializing sink events to <code>sessionStorage</code> before the navigation occurs, then recovering the data after the new page loads.</p><p>The engine also uses Chrome DevTools Protocol (CDP) to intercept navigations at the browser level, because <code>location.href</code> assignments can&rsquo;t be reliably hooked by JavaScript monkey-patching — the navigation fires at the engine level before any interposition can catch it.</p><h2 id=invoking-the-engine><a class=heading-anchor href=#invoking-the-engine aria-label="Link to section: Invoking the Engine">#</a>
+Invoking the Engine</h2><h3 id=autonomous-mode-full-scan><a class=heading-anchor href=#autonomous-mode-full-scan aria-label="Link to section: Autonomous Mode (Full Scan)">#</a>
+Autonomous Mode (Full Scan)</h3><div class=highlight><pre tabindex=0 style=color:#e6edf3;background-color:#0d1117;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash><span style=display:flex><span><span style=color:#8b949e;font-style:italic># Basic reflected XSS scan</span>
+</span></span><span style=display:flex><span>enigma run <span style=color:#a5d6ff>&#34;https://target.com/search&#34;</span> <span style=color:#a5d6ff>&#34;q&#34;</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#8b949e;font-style:italic># With authentication</span>
+</span></span><span style=display:flex><span>enigma run <span style=color:#a5d6ff>&#34;https://target.com/search&#34;</span> <span style=color:#a5d6ff>&#34;q&#34;</span> --cookie<span style=color:#ff7b72;font-weight:700>=</span><span style=color:#a5d6ff>&#34;session=abc123&#34;</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#8b949e;font-style:italic># DOM XSS via URL hash</span>
+</span></span><span style=display:flex><span>enigma run <span style=color:#a5d6ff>&#34;https://target.com/#&#34;</span> <span style=color:#a5d6ff>&#34;hash&#34;</span> --source<span style=color:#ff7b72;font-weight:700>=</span>hash
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#8b949e;font-style:italic># Path injection (PHP_SELF)</span>
+</span></span><span style=display:flex><span>enigma run <span style=color:#a5d6ff>&#34;https://target.com/page.php&#34;</span> <span style=color:#a5d6ff>&#34;path&#34;</span> --source<span style=color:#ff7b72;font-weight:700>=</span>path
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#8b949e;font-style:italic># Stored XSS</span>
+</span></span><span style=display:flex><span>enigma run <span style=color:#a5d6ff>&#34;https://target.com/comment&#34;</span> <span style=color:#a5d6ff>&#34;comment&#34;</span> <span style=color:#79c0ff>\
+</span></span></span><span style=display:flex><span><span style=color:#79c0ff></span>  --observe<span style=color:#ff7b72;font-weight:700>=</span><span style=color:#a5d6ff>&#34;https://target.com/post/123&#34;</span> <span style=color:#79c0ff>\
+</span></span></span><span style=display:flex><span><span style=color:#79c0ff></span>  --form<span style=color:#ff7b72;font-weight:700>=</span><span style=color:#a5d6ff>&#34;postId=123&#34;</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#8b949e;font-style:italic># Header injection (Referer)</span>
+</span></span><span style=display:flex><span>enigma run <span style=color:#a5d6ff>&#34;https://target.com/404&#34;</span> <span style=color:#a5d6ff>&#34;Referer&#34;</span> --inject-header<span style=color:#ff7b72;font-weight:700>=</span>Referer
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#8b949e;font-style:italic># Visible browser for debugging</span>
+</span></span><span style=display:flex><span>enigma run <span style=color:#a5d6ff>&#34;https://target.com/search&#34;</span> <span style=color:#a5d6ff>&#34;q&#34;</span> --no-headless --verbose
+</span></span></code></pre></div><h3 id=agent-mode-claude-in-the-loop><a class=heading-anchor href=#agent-mode-claude-in-the-loop aria-label="Link to section: Agent Mode (Claude-in-the-Loop)">#</a>
+Agent Mode (Claude-in-the-Loop)</h3><p>For cases where human judgment is needed between steps:</p><div class=highlight><pre tabindex=0 style=color:#e6edf3;background-color:#0d1117;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash><span style=display:flex><span><span style=color:#8b949e;font-style:italic># Initialize session</span>
+</span></span><span style=display:flex><span>enigma init <span style=color:#a5d6ff>&#34;https://target.com/search&#34;</span> <span style=color:#a5d6ff>&#34;q&#34;</span> --cookie<span style=color:#ff7b72;font-weight:700>=</span><span style=color:#a5d6ff>&#34;session=abc&#34;</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#8b949e;font-style:italic># Get next mutation suggestion</span>
+</span></span><span style=display:flex><span>enigma next --session<span style=color:#ff7b72;font-weight:700>=</span>xss-1733-abc123
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#8b949e;font-style:italic># Record what happened</span>
+</span></span><span style=display:flex><span>enigma observe --session<span style=color:#ff7b72;font-weight:700>=</span>xss-1733-abc123 --status<span style=color:#ff7b72;font-weight:700>=</span>blocked
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#8b949e;font-style:italic># Check result</span>
+</span></span><span style=display:flex><span>enigma result --session<span style=color:#ff7b72;font-weight:700>=</span>xss-1733-abc123
+</span></span></code></pre></div><h3 id=discovery-mode-caido-integration><a class=heading-anchor href=#discovery-mode-caido-integration aria-label="Link to section: Discovery Mode (Caido Integration)">#</a>
+Discovery Mode (Caido Integration)</h3><div class=highlight><pre tabindex=0 style=color:#e6edf3;background-color:#0d1117;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash><span style=display:flex><span><span style=color:#8b949e;font-style:italic># Find injection points in proxy traffic</span>
+</span></span><span style=display:flex><span>enigma discover <span style=color:#a5d6ff>&#34;target.com&#34;</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#8b949e;font-style:italic># Analyze a specific captured request</span>
+</span></span><span style=display:flex><span>enigma discover --request-id<span style=color:#ff7b72;font-weight:700>=</span><span style=color:#a5d6ff>12345</span>
+</span></span></code></pre></div><h2 id=the-knowledge-accumulation-model><a class=heading-anchor href=#the-knowledge-accumulation-model aria-label="Link to section: The Knowledge Accumulation Model">#</a>
+The Knowledge Accumulation Model</h2><p>What makes Enigma fundamentally different from wordlist-based scanners is how it accumulates and uses knowledge across the scan. After each test, the engine updates a knowledge state:</p><pre tabindex=0><code class=language-mermaid data-lang=mermaid>%%{init: {&#39;theme&#39;: &#39;dark&#39;, &#39;themeVariables&#39;: { &#39;lineColor&#39;: &#39;#58a6ff&#39;}}}%%
+flowchart LR
+    TEST[&#34;Test Payload&#34;] --&gt; OBSERVE[&#34;Observe&#34;]
+    OBSERVE --&gt; CLASSIFY{&#34;Result?&#34;}
+
+    CLASSIFY --&gt;|EXECUTED| DONE([&#34;XSS Found&#34;])
+    CLASSIFY --&gt;|BLOCKED| LEARN_B[&#34;Record blockers&#34;]
+    CLASSIFY --&gt;|REFLECTED| LEARN_R[&#34;Record footholds&#34;]
+
+    LEARN_B --&gt; KB[&#34;Knowledge Base&#34;]
+    LEARN_R --&gt; KB
+
+    KB --&gt; INFER[&#34;Infer patterns&#34;]
+    INFER --&gt; COMPOSE[&#34;Select next mutation&#34;]
+    COMPOSE --&gt; TEST
+
+    style TEST fill:#1f2937,stroke:#58a6ff,stroke-width:2px,color:#fff
+    style DONE fill:#22c55e,stroke:#fff,stroke-width:3px,color:#000
+    style KB fill:#3b82f6,stroke:#fff,stroke-width:2px,color:#fff
+    style INFER fill:#9333ea,stroke:#fff,stroke-width:2px,color:#fff
+</code></pre><p>This loop means that by the 20th payload, the engine has a detailed model of the WAF&rsquo;s behavior — which tags pass, which events are blocked, whether encoding is decoded, what function names trigger blocks. It&rsquo;s not guessing anymore. It&rsquo;s navigating a narrowing possibility space with increasingly precise information.</p><h2 id=the-pivot-from-mutation-to-enumeration><a class=heading-anchor href=#the-pivot-from-mutation-to-enumeration aria-label="Link to section: The Pivot: From Mutation to Enumeration">#</a>
+The Pivot: From Mutation to Enumeration</h2><p>A critical decision point in the engine is the <strong>pivot</strong> — when the engine switches from intelligent mutation to systematic enumeration. This happens when:</p><ol><li>Four or more common HTML tags are confirmed blocked (suggesting a tag allowlist rather than a blocklist)</li><li>The mutation composer has exhausted its cascade-driven suggestions</li><li>Partial successes indicate the WAF is using pattern matching that resists structural bypass</li></ol><p>At this point, the engine shifts strategy. Instead of trying to outsmart the filter, it maps the filter&rsquo;s boundaries:</p><pre tabindex=0><code class=language-mermaid data-lang=mermaid>%%{init: {&#39;theme&#39;: &#39;dark&#39;, &#39;themeVariables&#39;: { &#39;lineColor&#39;: &#39;#58a6ff&#39;}}}%%
+flowchart TD
+    PIVOT[&#34;PIVOT: Enumeration mode&#34;] --&gt; TAGS[&#34;Tag Fuzzing: 80+ tags&#34;]
+
+    TAGS --&gt; T1[&#34;Tier 1: WAF bypass favorites&#34;]
+    TAGS --&gt; T2[&#34;Tier 2: Standard HTML5&#34;]
+    TAGS --&gt; T3[&#34;Tier 3: Deprecated/obscure&#34;]
+    TAGS --&gt; T4[&#34;Tier 4: Custom elements&#34;]
+
+    T1 --&gt; ALLOWED{&#34;Which passed?&#34;}
+    T2 --&gt; ALLOWED
+    T3 --&gt; ALLOWED
+    T4 --&gt; ALLOWED
+
+    ALLOWED --&gt; EVENTS[&#34;Event Fuzzing: 60+ events&#34;]
+    EVENTS --&gt; COMBINE[&#34;Combine: tag + event + function&#34;]
+    COMBINE --&gt; EXEC([&#34;XSS or Exhausted&#34;])
+
+    style PIVOT fill:#ef4444,stroke:#fff,stroke-width:2px,color:#fff
+    style T1 fill:#e76f51,stroke:#58a6ff,stroke-width:2px,color:#fff
+    style T2 fill:#f4a261,stroke:#58a6ff,stroke-width:2px,color:#000
+    style T3 fill:#e9c46a,stroke:#58a6ff,stroke-width:2px,color:#000
+    style T4 fill:#22c55e,stroke:#fff,stroke-width:2px,color:#000
+    style EXEC fill:#1f2937,stroke:#58a6ff,stroke-width:2px,color:#fff
+</code></pre><p>Custom elements (Tier 4) are the secret weapon. WAFs almost universally fail to block <code>&lt;xss onfocus=alert(1) tabindex=1></code> or <code>&lt;custom-element onmouseover=alert(1)></code> because they can&rsquo;t enumerate an infinite set of tag names. If the WAF is using a blocklist of known tags, custom elements bypass it entirely.</p><h2 id=what-the-architecture-looks-like><a class=heading-anchor href=#what-the-architecture-looks-like aria-label="Link to section: What the Architecture Looks Like">#</a>
+What the Architecture Looks Like</h2><pre tabindex=0><code>enigma/
+├── core/
+│   ├── engines/
+│   │   ├── mutation/           # The 5 Rotors
+│   │   │   ├── composer.ts     # The brain — cascade logic, rotor orchestration
+│   │   │   ├── context-techniques.ts  # R1: 40+ context detection patterns
+│   │   │   ├── blockers.ts     # R2: WAF alternatives, JSFuck, whitespace
+│   │   │   ├── encoders.ts     # R3: HTML/JS/URL/Base64 encoding layers
+│   │   │   ├── structures.ts   # R4: Parentheses bypass, DOM clobbering, prototype pollution
+│   │   │   ├── executors.ts    # R5: Auto-fire events, browser-specific vectors
+│   │   │   ├── baselines.ts    # Starting payloads per context
+│   │   │   └── composite-triggers.ts  # Multi-blocker detection
+│   │   ├── dom/
+│   │   │   └── sink-hooks.ts   # 30+ DOM sink interception hooks
+│   │   └── trigger-finder.ts   # Binary search decomposition engine
+│   ├── runner/
+│   │   └── index.ts            # Puppeteer autonomous scanner (~4800 lines)
+│   └── visualization/
+│       └── logger.ts           # Decision tree logging for dashboard
+├── cli/
+│   └── commands/
+│       ├── run.ts              # Autonomous scan command
+│       ├── discover/           # Caido integration for injection point discovery
+│       ├── init.ts             # Agent mode session creation
+│       ├── next.ts             # Agent mode next mutation
+│       └── observe.ts          # Agent mode observation recording
+└── tests/
+    └── cascade-rules/
+        └── MASTER-RULES.json        # Canonical cascade orders
+</code></pre><h2 id=the-principles><a class=heading-anchor href=#the-principles aria-label="Link to section: The Principles">#</a>
+The Principles</h2><p>Three principles drive every decision in the engine:</p><p><strong>1. &ldquo;Don&rsquo;t keep hitting the same wall.&rdquo;</strong> If <code>&lt;img></code> is blocked, don&rsquo;t try more <code>&lt;img></code> payloads. Move to <code>&lt;svg></code>, <code>&lt;details></code>, or custom elements. The knowledge base prevents repetition.</p><p><strong>2. &ldquo;Build on what works.&rdquo;</strong> If the tag renders but the event is stripped, that&rsquo;s a foothold. Keep the tag, try different events. The partial success system makes this automatic.</p><p><strong>3. &ldquo;We ask questions, then respond.&rdquo;</strong> Every payload is a question. The binary search isn&rsquo;t overhead — it&rsquo;s the most important part of the scan. Understanding <em>what</em> is blocked is worth more than blindly trying the next payload in a list.</p><p>These aren&rsquo;t just nice ideas. They&rsquo;re encoded as hard constraints in the composer. The engine literally cannot retry a known-blocked pattern. It literally cannot propose a mutation without referencing the current knowledge state. The architecture enforces the methodology.</p><h2 id=the-complete-decision-map><a class=heading-anchor href=#the-complete-decision-map aria-label="Link to section: The Complete Decision Map">#</a>
+The Complete Decision Map</h2><p>This is the full strategy map — every context, every blocker type, every bypass strategy the engine can enter. The earlier diagrams showed individual cascades in detail. This shows how they all connect.</p><p><a href=/diagrams/complete-decision-map.html target=_blank style=display:inline-block;margin-bottom:1rem;color:#58a6ff>→ Open diagram in full screen (new tab)</a></p><pre tabindex=0><code class=language-mermaid data-lang=mermaid>%%{init: {&#39;theme&#39;: &#39;dark&#39;, &#39;themeVariables&#39;: { &#39;lineColor&#39;: &#39;#58a6ff&#39;, &#39;primaryTextColor&#39;: &#39;#fff&#39;}}}%%
+flowchart TB
+    START([&#34;Probe Response&#34;]) --&gt; R1
+
+    subgraph R1[&#34;R1: CONTEXT&#34;]
+        direction LR
+        CTX_HC[&#34;html_content&#34;]
+        CTX_HA[&#34;html_attribute&#34;]
+        CTX_SS[&#34;script_string&#34;]
+        CTX_SB[&#34;script_block&#34;]
+        CTX_HR[&#34;href_attribute&#34;]
+        CTX_SVG[&#34;svg_context&#34;]
+        CTX_JSON[&#34;json_body&#34;]
+    end
+
+    R1 --&gt; BASELINE[&#34;Baseline Test&#34;]
+    BASELINE --&gt; BRESULT{Result?}
+    BRESULT --&gt;|EXECUTED| XSS([&#34;XSS FOUND&#34;])
+    BRESULT --&gt;|BLOCKED| BSEARCH[&#34;Binary Search&#34;]
+    BRESULT --&gt;|REFLECTED| BSEARCH
+
+    BSEARCH --&gt; R2
+
+    subgraph R2[&#34;R2: BLOCKERS DETECTED&#34;]
+        direction LR
+        BLK_ANG[&#34;Angles&#34;]
+        BLK_PAR[&#34;Parens&#34;]
+        BLK_QUO[&#34;Quotes&#34;]
+        BLK_SPC[&#34;Space&#34;]
+        BLK_KEY[&#34;Keywords&#34;]
+        BLK_EVT[&#34;Events&#34;]
+        BLK_TAG[&#34;Tags&#34;]
+        BLK_SCR[&#34;Script&#34;]
+        BLK_HRF[&#34;javascript:&#34;]
+        BLK_WIN[&#34;window&#34;]
+    end
+
+    BLK_ANG --&gt; S_ANG
+    BLK_PAR --&gt; S_PAR
+    BLK_QUO --&gt; S_QUO
+    BLK_SPC --&gt; S_SPC
+    BLK_KEY --&gt; S_KEY
+    BLK_EVT --&gt; S_EVT
+    BLK_TAG --&gt; S_TAG
+    BLK_SCR --&gt; S_SCR
+    BLK_HRF --&gt; S_HRF
+    BLK_WIN --&gt; S_WIN
+
+    subgraph STRATEGIES[&#34;R3+R4: ENCODING + STRUCTURE&#34;]
+        S_ANG[&#34;ANGLE: entities, SVG decode&#34;]
+        S_PAR[&#34;PAREN: backticks, throw, valueOf, hasInstance, Reflect, JSFuck&#34;]
+        S_QUO[&#34;QUOTE: switch type, backtick, hex, entities&#34;]
+        S_SPC[&#34;SPACE: tab, newline, slash, formfeed, comment&#34;]
+        S_KEY[&#34;KEYWORD: confirm, prompt, print, eval+atob&#34;]
+        S_EVT[&#34;EVENT: onload, ontoggle, onfocus, onbegin, popover&#34;]
+        S_TAG[&#34;TAG: svg, body, details, input, math, custom&#34;]
+        S_SCR[&#34;SCRIPT: close tag, backslash, unicode&#34;]
+        S_HRF[&#34;HREF: data URI, protocol, tab inject&#34;]
+        S_WIN[&#34;WINDOW: self, globalThis, this, top, parent&#34;]
+    end
+
+    subgraph ADVANCED[&#34;ADVANCED STRATEGIES&#34;]
+        direction LR
+        ADV_CLOB[&#34;DOM Clobbering&#34;]
+        ADV_PROTO[&#34;Prototype Pollution&#34;]
+        ADV_WNAME[&#34;Window.name&#34;]
+        ADV_SMAP[&#34;Source Maps&#34;]
+        ADV_SVG[&#34;SVG Upload&#34;]
+        ADV_XHTML[&#34;XHTML&#34;]
+        ADV_FUZZ[&#34;Mutation Fuzz&#34;]
+        ADV_BROWSER[&#34;Browser-Specific&#34;]
+    end
+
+    STRATEGIES --&gt; R5
+    ADVANCED --&gt; R5
+
+    subgraph R5[&#34;R5: EXECUTION&#34;]
+        direction LR
+        AUTO[&#34;Auto-fire: onerror, onload, ontoggle, onfocus, onbegin, popover&#34;]
+        INTERACT[&#34;Interaction: onclick, onmouseover, accesskey&#34;]
+    end
+
+    R5 --&gt; COMBINE[&#34;Combine: Tag + Event + Function&#34;]
+    COMBINE --&gt; TEST{Test Payload}
+
+    TEST --&gt;|EXECUTED| XSS
+    TEST --&gt;|BLOCKED| LEARN[&#34;Learn blocker&#34;]
+    LEARN --&gt; R2
+
+    TEST --&gt;|EXHAUSTED| ENUM[&#34;PIVOT: Enumerate 80+ tags, 60+ events&#34;]
+    ENUM --&gt; COMBINE
+
+    style START fill:#1f2937,stroke:#58a6ff,stroke-width:2px,color:#fff
+    style XSS fill:#22c55e,stroke:#fff,stroke-width:3px,color:#000
+    style R1 fill:#3b5998,stroke:#58a6ff,stroke-width:2px,color:#fff
+    style R2 fill:#2a9d8f,stroke:#58a6ff,stroke-width:2px,color:#fff
+    style STRATEGIES fill:#1e3a5f,stroke:#58a6ff,stroke-width:2px,color:#fff
+    style ADVANCED fill:#1e3a5f,stroke:#f4a261,stroke-width:2px,color:#fff
+    style R5 fill:#e76f51,stroke:#58a6ff,stroke-width:2px,color:#fff
+    style ENUM fill:#f4a261,stroke:#58a6ff,stroke-width:2px,color:#000
+    style LEARN fill:#9333ea,stroke:#58a6ff,stroke-width:2px,color:#fff
+    style BASELINE fill:#1f2937,stroke:#58a6ff,stroke-width:2px,color:#fff
+    style BSEARCH fill:#1f2937,stroke:#58a6ff,stroke-width:2px,color:#fff
+    style COMBINE fill:#1f2937,stroke:#58a6ff,stroke-width:2px,color:#fff
+</code></pre><p>The feedback loop at the bottom is the key — <code>TEST → LEARN → R2 → STRATEGIES → R5 → COMBINE → TEST</code>. Every failed payload teaches the engine something, and every subsequent attempt is informed by everything that came before.</p><h2 id=whats-next><a class=heading-anchor href=#whats-next aria-label="Link to section: What&rsquo;s Next">#</a>
+What&rsquo;s Next</h2><p>Enigma currently handles reflected, stored, and DOM-based XSS across 40+ injection contexts. Areas that remain on the roadmap:</p><ul><li><strong>AngularJS expression injection</strong> — sandbox escape chains like <code>{{constructor.constructor('alert(1)')()}}</code> are implemented but I need deeper coverage of Angular-specific bypasses</li><li><strong>Mutation XSS (mXSS)</strong> — exploiting browser parser differences between the sanitizer and the rendering engine. This is a fundamentally different attack class that requires modeling browser-specific parser behaviour</li><li><strong>CSP bypass integration</strong> — the engine detects CSP headers and identifies basic bypasses, but deeper CSP analysis (trusted types, strict-dynamic, nonce reuse) needs expansion</li><li><strong>Multi-step stored XSS</strong> — current stored XSS support handles inject-then-observe, but complex flows (inject in profile, trigger in admin panel, execute in email notification) require workflow modeling</li></ul><h2 id=closing-thoughts><a class=heading-anchor href=#closing-thoughts aria-label="Link to section: Closing Thoughts">#</a>
+Closing Thoughts</h2><p>Most XSS tools are glorified wordlists. They fire payloads and check if <code>alert</code> popped. When it doesn&rsquo;t, they move to the next one. There&rsquo;s no understanding of <em>why</em> a payload was blocked, no memory of what was tried, and no strategy for what should come next.</p><p>I built Enigma because I was tired of that. The problem of finding XSS through a WAF isn&rsquo;t a brute-force problem — it&rsquo;s a constraint-solving problem. You have a target context, a set of blocked characters and keywords, and a vast space of JavaScript syntax that can achieve execution. The engine that solves it should reason about those constraints, not throw darts.</p><p>That&rsquo;s what the five rotors do. Context narrows the attack surface. Binary search identifies the constraints. Cascades systematically exhaust alternatives. And the knowledge base ensures the engine never wastes a request repeating something it already knows doesn&rsquo;t work. Every payload is a question, every response is an answer, and the engine gets smarter with each iteration.</p><p>There&rsquo;s still plenty to build — mXSS, deeper CSP analysis, multi-step stored flows. But the architecture is designed to absorb new techniques without changing the core loop. A new bypass is just another position on an existing rotor. A new context is a new entry point into the same cascade machinery. The rotors keep turning.</p><hr><p><em>Enigma is part of the <a href=https://labs.trace37.com>Trace37 Labs</a> security toolkit.</em></p></div><div class=share-actions data-title="Enigma: An Autonomous XSS Engine Built on a 5-Rotor Methodology" data-url=https://labs.trace37.com/blog/enigma-xss-engine/ data-author="Paul Reed" data-year=2026 data-site="trace37 labs"><button type=button class=share-btn data-action=copy>
+<span class=share-btn-label>copy link</span>
+</button>
+<a class=share-btn data-action=hn href="https://hn.algolia.com/?q=https%3A%2F%2Flabs.trace37.com%2Fblog%2Fenigma-xss-engine%2F" target=_blank rel="noopener noreferrer">discuss on hn
+</a><button type=button class=share-btn data-action=cite>
+<span class=share-btn-label>cite</span></button></div></article><section class=related-posts><div class=section-header><h2>// related research</h2></div><ul class="post-list related-list"><li class=post-item><div class=post-meta>2026-02-28</div><h3 class=post-title><a href=https://labs.trace37.com/blog/enigma-5-rotor-visualization/>Inside Enigma: How 5 Rotors Crack WAF-Protected XSS</a></h3><p class=post-excerpt>An interactive walkthrough of the Enigma XSS engine — watch 5 mutation rotors adapt in real-time as they probe, decompose, and bypass a WAF to achieve confirmed XSS execution.</p></li><li class=post-item><div class=post-meta>2026-02-04</div><h3 class=post-title><a href=https://labs.trace37.com/blog/enigma-ssrf-engine/>Enigma SSRF: An Autonomous Server-Side Request Forgery Engine</a></h3><p class=post-excerpt>A deep technical exploration of Enigma's SSRF engine — an adaptive scanner that implements the 4-phase methodology with IP obfuscation, URL parser confusion, protocol smuggling, and out-of-band callback confirmation.</p></li><li class=post-item><div class=post-meta>2026-02-04</div><h3 class=post-title><a href=https://labs.trace37.com/tools/enigma-xss/>Enigma XSS</a></h3><p class=post-excerpt>Autonomous XSS detection engine using a 5-rotor methodology for systematic WAF bypass</p></li></ul></section><nav class=post-nav><a href=https://labs.trace37.com/blog/mastermind-ai-ecosystem/>← Mastermind AI: Anatomy of an Autonomous Bug Bounty Hunting Platform</a>
+<a href=https://labs.trace37.com/blog/enigma-ssrf-engine/>Enigma SSRF: An Autonomous Server-Side Request Forgery Engine →</a></nav><section class=comments-section aria-label=Comments><div class=section-header><h2>// comments</h2></div><script src=https://giscus.app/client.js data-repo=trace37labs/trace37-labs data-repo-id=R_kgDORH8YCA data-category=General data-category-id=DIC_kwDORH8YCM4C7EFl data-mapping=pathname data-strict=1 data-reactions-enabled=1 data-emit-metadata=0 data-input-position=top data-theme=transparent_dark data-lang=en data-loading=lazy crossorigin=anonymous async></script></section></div></div></div></main><footer><div class=container><p>© 2026 trace37 labs — offensive security research & services · <a href=/index.xml>RSS</a> · <a href=https://github.com/trace37labs>GitHub</a></p></div></footer><script>(function(){var e,n,s,o=document.getElementById("reading-progress"),t=document.getElementById("back-to-top");(o||t)&&(s=function(){var s=window.scrollY||document.documentElement.scrollTop,e=document.documentElement.scrollHeight-window.innerHeight,n=e>0?s/e*100:0;o&&(o.style.width=n+"%"),t&&t.classList.toggle("visible",n>25)},window.addEventListener("scroll",s,{passive:!0}),window.addEventListener("resize",s,{passive:!0}),s()),t&&t.addEventListener("click",function(){window.scrollTo({top:0,behavior:"smooth"})}),e=document.querySelector(".share-actions"),e&&navigator.clipboard&&(n=function(e,t){var s,n=e.querySelector(".share-btn-label");if(!n)return;s=n.textContent,n.textContent=t,e.classList.add("flashed"),setTimeout(function(){n.textContent=s,e.classList.remove("flashed")},1800)},e.querySelectorAll('button[data-action="copy"]').forEach(function(t){t.addEventListener("click",function(){navigator.clipboard.writeText(e.dataset.url).then(function(){n(t,"copied")}).catch(function(){n(t,"error")})})}),e.querySelectorAll('button[data-action="cite"]').forEach(function(t){t.addEventListener("click",function(){var s=e.dataset.author+". ("+e.dataset.year+"). "+e.dataset.title+". "+e.dataset.site+". "+e.dataset.url;navigator.clipboard.writeText(s).then(function(){n(t,"copied")}).catch(function(){n(t,"error")})})})),navigator.clipboard&&document.querySelectorAll("pre").forEach(function(e){var t,n=e.querySelector("code");if(!n||(n.className||"").indexOf("language-mermaid")!==-1)return;t=document.createElement("button"),t.type="button",t.className="code-copy-btn",t.textContent="copy",t.setAttribute("aria-label","Copy code to clipboard"),t.addEventListener("click",function(){navigator.clipboard.writeText(n.textContent).then(function(){t.textContent="copied",t.classList.add("copied"),setTimeout(function(){t.textContent="copy",t.classList.remove("copied")},2e3)}).catch(function(){t.textContent="error",setTimeout(function(){t.textContent="copy"},2e3)})}),e.appendChild(t)})})()</script><script src=https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js></script><script>document.querySelectorAll("pre code.language-mermaid").forEach(function(e){var n=e.textContent,t=document.createElement("div");t.className="mermaid",t.textContent=n,e.parentNode.replaceWith(t)}),mermaid.initialize({startOnLoad:!0,theme:"dark",themeVariables:{primaryColor:"#3b82f6",primaryTextColor:"#fff",primaryBorderColor:"#58a6ff",lineColor:"#58a6ff",secondaryColor:"#1f2937",tertiaryColor:"#374151",background:"#0d1117",mainBkg:"#1f2937",nodeBorder:"#58a6ff",clusterBkg:"#1f2937",clusterBorder:"#58a6ff",titleColor:"#fff",edgeLabelBackground:"#1f2937"},flowchart:{useMaxWidth:!0,htmlLabels:!0,curve:"basis"}})</script><script>(function(){if(window.matchMedia("(prefers-reduced-motion: reduce)").matches)return;var t="!<>-_\\/[]{}=+*^?#01x%&",e=function(){return t[Math.random()*t.length|0]};function s(e){var t=e.getBoundingClientRect();return t.bottom>0&&t.top<(window.innerHeight||document.documentElement.clientHeight)}function o(t,n){for(var s,a,r,c,o=[],i=0;i<n.length;i++)n[i]!==" "&&o.push(i);if(!o.length)return;a=[],s=Math.round(o.length/3),s<5&&(s=5),s>8&&(s=8),s>o.length&&(s=o.length);for(r=0;r<s;r++)a.push(o[Math.random()*o.length|0]);c=0,function s(){if(c++<3){var o=n.split("");a.forEach(function(t){o[t]=e()}),t.textContent=o.join(""),setTimeout(s,55)}else t.textContent=n}()}function n(e,t){setTimeout(function(){s(e)&&o(e,t),n(e,t)},3e4+Math.random()*3e4)}document.querySelectorAll("[data-scramble], .list-hero-header h1, .post-header h1").forEach(function(t){var s=t.textContent,o=s.length,r=Math.min(220+o*45,1100),c=parseInt(t.getAttribute("data-scramble-delay")||"0",10),i=null,a=function(l){i===null&&(i=l);var d,u,h,m,f,g,p=l-i-c;if(p<=0){for(h="",u=0;u<o;u++)h+=s[u]===" "?" ":e();t.textContent=h,requestAnimationFrame(a);return}for(m=Math.min(p/r,1),g=m*o,f="",d=0;d<o;d++)f+=s[d]===" "||d<g?s[d]:e();t.textContent=f,m<1?requestAnimationFrame(a):(t.textContent=s,n(t,s))};requestAnimationFrame(a)})})(),function(){var n,e=document.querySelectorAll(".post-item, .tool-card, .lab-card");if(!e.length)return;function t(e){e.classList.add("in")}if(!("IntersectionObserver"in window)||window.matchMedia("(prefers-reduced-motion: reduce)").matches){e.forEach(t);return}n=new IntersectionObserver(function(e){e.forEach(function(e){e.isIntersecting&&(t(e.target),n.unobserve(e.target))})},{threshold:.1,rootMargin:"0px 0px -6% 0px"}),e.forEach(function(e){var t=e.parentElement,s=t?Array.prototype.indexOf.call(t.children,e):0;e.style.setProperty("--rd",s%4*55+"ms"),n.observe(e)}),setTimeout(function(){e.forEach(t)},4e3)}(),function(){var e={};document.addEventListener("mouseover",function(t){var n,o,i,s=t.target.closest?t.target.closest("a[href]"):null;if(!s||s.target==="_blank")return;if(i=s.getAttribute("href"),!i||i.charAt(0)==="#")return;try{n=new URL(s.href,location.href)}catch{return}if(n.origin!==location.origin||n.pathname===location.pathname||e[n.href])return;e[n.href]=!0,o=document.createElement("link"),o.rel="prefetch",o.href=n.href,document.head.appendChild(o)},{passive:!0})}(),function(){var e={NOTE:"note",TIP:"tip",IMPORTANT:"important",WARNING:"warning",CAUTION:"caution"};document.querySelectorAll(".post-content blockquote").forEach(function(t){var s,o,i,n=t.querySelector("p");if(!n)return;if(i=n.innerHTML.match(/^\s*\[!(\w+)\]/i),!i)return;if(s=e[i[1].toUpperCase()],!s)return;t.classList.add("callout","callout-"+s),n.innerHTML=n.innerHTML.replace(/^\s*\[!\w+\]\s*(<br\s*\/?>)?\s*/i,""),o=document.createElement("div"),o.className="callout-title",o.textContent=s,t.insertBefore(o,t.firstChild),n.innerHTML.trim()===""&&n.remove()})}(),function(){var e,t=document.querySelectorAll(".post-content img");if(!t.length)return;function n(){e&&(e.classList.remove("open"),document.body.style.overflow="")}function s(t,s){e||(e=document.createElement("div"),e.className="lightbox",e.appendChild(document.createElement("img")),e.addEventListener("click",n),document.body.appendChild(e));var o=e.querySelector("img");o.src=t,o.alt=s||"",e.classList.add("open"),document.body.style.overflow="hidden"}t.forEach(function(e){e.addEventListener("click",function(){s(e.currentSrc||e.src,e.alt)})}),document.addEventListener("keydown",function(e){e.key==="Escape"&&n()})}(),function(){var e,t,n=document.querySelectorAll('.post-content sup[id^="fnref"] a, .post-content a.footnote-ref, .post-content a[role="doc-noteref"]');if(!n.length)return;e=document.createElement("div"),e.className="fn-tip",document.body.appendChild(e);function o(n){if(clearTimeout(t),s=n.getAttribute("href"),!s||s.charAt(0)!=="#")return;if(i=document.getElementById(s.slice(1)),!i)return;e.innerHTML=i.innerHTML.replace(/<a\b[^>]*footnote-backref[^>]*>[\s\S]*?<\/a>/gi,""),e.style.display="block";var s,i,o=n.getBoundingClientRect(),r=e.offsetWidth,c=e.offsetHeight,l=Math.max(10,Math.min(o.left+o.width/2-r/2,window.innerWidth-r-10)),a=o.top-c-10;a<10&&(a=o.bottom+10),e.style.left=l+"px",e.style.top=a+"px",requestAnimationFrame(function(){e.classList.add("open")})}function s(){t=setTimeout(function(){e.classList.remove("open"),e.style.display="none"},160)}n.forEach(function(e){e.addEventListener("mouseenter",function(){o(e)}),e.addEventListener("mouseleave",s)}),e.addEventListener("mouseenter",function(){clearTimeout(t)}),e.addEventListener("mouseleave",s)}(),function(){if(!navigator.clipboard)return;document.querySelectorAll(".post-content .heading-anchor").forEach(function(e){e.addEventListener("click",function(t){t.preventDefault();var n=e.getAttribute("href");try{history.replaceState(null,"",n)}catch{}navigator.clipboard.writeText(location.origin+location.pathname+n).then(function(){e.classList.add("copied"),setTimeout(function(){e.classList.remove("copied")},1300)}).catch(function(){})})})}(),function(){var e=location.origin;document.querySelectorAll(".post-content a[href], .content a[href]").forEach(function(t){var s,n=t.getAttribute("href");if(!n||n.charAt(0)==="#"||n.charAt(0)==="/")return;try{s=new URL(t.href)}catch{return}if(s.origin===e)return;t.classList.add("ext-link"),t.target||(t.target="_blank",t.rel="noopener noreferrer")})}()</script><script>(function(){if(!window.matchMedia("(pointer: fine)").matches)return;document.querySelectorAll(".post-item").forEach(function(e){e.addEventListener("pointermove",function(t){var n=e.getBoundingClientRect();e.style.setProperty("--spot-x",t.clientX-n.left+"px"),e.style.setProperty("--spot-y",t.clientY-n.top+"px")})})})()</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a21c23821b88d0bf',t:'MTc4NTE2MDQ5NA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"c7275391e91d479db6fa8a6fa150d359","r":1}' crossorigin="anonymous"></script>
+</body></html>

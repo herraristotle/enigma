@@ -1,0 +1,146 @@
+{
+  "rotorWeights": {
+    "context": 100,
+    "blockers": 90,
+    "encoding": 70,
+    "structure": 60,
+    "execution": 50
+  },
+  "pivot": {
+    "blockedTagThreshold": 4,
+    "eventCount": 62,
+    "tagCount": 86
+  },
+  "contexts": [
+    "html_content",
+    "html_attribute",
+    "html_attribute_single",
+    "html_attribute_double",
+    "href_attribute",
+    "src_attribute",
+    "srcdoc_attribute",
+    "style_attribute",
+    "event_handler",
+    "script_string_single",
+    "script_string_double",
+    "script_string_template",
+    "script_block",
+    "script_regex",
+    "json_body",
+    "json_string",
+    "json_key",
+    "svg_context",
+    "svg_script",
+    "svg_animate",
+    "mathml_context",
+    "textarea_context",
+    "title_context",
+    "template_expression",
+    "angular_expression",
+    "vue_template",
+    "mustache_template",
+    "jsx_prop",
+    "dangerously_set_inner_html",
+    "inner_html_sink",
+    "outer_html_sink",
+    "document_write_sink",
+    "insert_adjacent_html_sink",
+    "eval_sink",
+    "function_constructor_sink",
+    "settimeout_string_sink",
+    "setinterval_string_sink",
+    "location_href_sink",
+    "location_assign_sink",
+    "location_replace_sink",
+    "jquery_html_sink",
+    "jquery_append_sink"
+  ],
+  "cascades": {
+    "event": [
+      "onerror",
+      "onload",
+      "ontoggle",
+      "onfocus",
+      "onbegin",
+      "onanimationstart",
+      "onafterscriptexecute",
+      "onbeforetoggle",
+      "onclick",
+      "onmouseover",
+      "accesskey"
+    ],
+    "keyword": [
+      "alert",
+      "confirm",
+      "prompt",
+      "print",
+      "eval(atob(...))",
+      "String.fromCharCode(...)"
+    ],
+    "paren": [
+      "backticks",
+      "throw_onerror",
+      "valueOf",
+      "hasInstance",
+      "setInterval_template",
+      "replace_template",
+      "Reflect.apply",
+      "Reflect.set",
+      "html_entities",
+      "dynamic_import",
+      "JSFuck"
+    ],
+    "space": [
+      "tab",
+      "newline",
+      "slash",
+      "formfeed",
+      "vertical_tab",
+      "js_comment"
+    ],
+    "tag": [
+      "svg",
+      "body",
+      "details",
+      "input",
+      "math",
+      "custom"
+    ],
+    "script": [
+      "close_tag",
+      "backslash",
+      "unicode"
+    ],
+    "href": [
+      "data_uri",
+      "protocol_smuggling",
+      "tab_inject"
+    ],
+    "window": [
+      "self",
+      "globalThis",
+      "this",
+      "top",
+      "parent"
+    ]
+  },
+  "tags": [
+    "a","abbr","acronym","address","animate","area","article","aside","audio","b","base","bdi","bdo","blockquote","body","button",
+    "canvas","caption","center","circle","cite","code","col","colgroup","custom-element","data","datalist","dd","defs","del","desc",
+    "details","dfn","dialog","div","dl","dt","ellipse","em","embed","fieldset","figcaption","figure","foreignObject","form","g","h1",
+    "h2","h3","h4","h5","h6","header","hr","i","iframe","image","img","input","ins","kbd","label","legend","li","line","main","map",
+    "mark","marquee","math","menu","meter","mpath","nav","object","ol","option","output","p","path","pattern","picture","polygon",
+    "polyline","pre","progress","q","rect","ruby","s","section","select","small","source","span","stop","strong","sub","summary","sup",
+    "svg","symbol","table","tbody","td","template","text","textarea","tfoot","th","thead","time","title","track","tspan","u","ul",
+    "use","video","view","xmp"
+  ],
+  "events": [
+    "onabort","onanimationcancel","onanimationend","onanimationiteration","onanimationstart","onauxclick","onbeforeinput","onbeforetoggle",
+    "onbegin","onblur","oncancel","oncanplay","oncanplaythrough","onchange","onclick","onclose","oncontextmenu","oncuechange","ondblclick",
+    "ondrag","ondragend","ondragenter","ondragleave","ondragover","ondragstart","ondrop","ondurationchange","onended","onerror","onfocus",
+    "onfocusin","onfocusout","onformdata","oninput","oninvalid","onkeydown","onkeypress","onkeyup","onload","onloadeddata","onloadedmetadata",
+    "onloadstart","onmessage","onmousedown","onmouseenter","onmouseleave","onmousemove","onmouseout","onmouseover","onmouseup","onpause",
+    "onplay","onplaying","onpointerdown","onpointerenter","onpointerleave","onpointermove","onpointerup","onpopstate","onprogress","onratechange",
+    "onreset","onresize","onscroll","onseeked","onseeking","onshow","onsubmit","onsuspend","ontimeupdate","ontoggle","ontransitionend","onvolumechange"
+  ]
+}
