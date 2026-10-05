@@ -52,6 +52,12 @@ async function main(): Promise<void> {
       let canaryUrl: string | undefined;
       let max: number | undefined;
       let noCloud = false;
+      let execute = false;
+      let timeout: number | undefined;
+      let verbose = false;
+      let slackWebhook: string | undefined;
+      let testHeaders = false;
+      let internalTarget: string | undefined;
       for (const arg of process.argv.slice(5)) {
         if (arg.startsWith("--canary=")) {
           canaryUrl = arg.slice(arg.indexOf("=") + 1);
@@ -65,10 +71,35 @@ async function main(): Promise<void> {
           max = val;
         } else if (arg === "--no-cloud") {
           noCloud = true;
+        } else if (arg === "--execute") {
+          execute = true;
+        } else if (arg.startsWith("--timeout=")) {
+          timeout = parseInt(arg.slice(arg.indexOf("=") + 1), 10);
+        } else if (arg === "--verbose") {
+          verbose = true;
+        } else if (arg.startsWith("--slack-webhook=")) {
+          slackWebhook = arg.slice(arg.indexOf("=") + 1);
+        } else if (arg === "--test-headers") {
+          testHeaders = true;
+        } else if (arg.startsWith("--target=")) {
+          internalTarget = arg.slice(arg.indexOf("=") + 1);
         }
       }
-      const result = runSsrfScan(targetUrl, parameter, { canaryUrl, max, noCloud });
-      console.log(JSON.stringify(result));
+      const scanOptions = { canaryUrl, max, noCloud, timeout, verbose, slackWebhook, testHeaders, targetUrl: internalTarget, execute };
+      const plan = runSsrfScan(targetUrl, parameter, scanOptions);
+      if (execute) {
+        const { executeSsrfPlan } = await import("../../../core/engines/ssrf/executor.ts");
+        const outcome = await executeSsrfPlan(targetUrl, parameter, plan, {
+          timeoutMs: timeout ?? 5000,
+          maxAttempts: max,
+          slackWebhook,
+          verbose
+        });
+        console.log(JSON.stringify(outcome, null, 2));
+        process.exitCode = outcome.confirmed > 0 ? 0 : 1;
+      } else {
+        console.log(JSON.stringify(plan));
+      }
       break;
     }
     case "blind": {

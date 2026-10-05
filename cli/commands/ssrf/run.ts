@@ -16,6 +16,7 @@ import {
   type ScanResult,
   type ContentMatch
 } from "../../../core/engines/ssrf/canary.ts";
+import { executeSsrfPlan, type SsrfExecutionOutcome } from "../../../core/engines/ssrf/executor.ts";
 
 export interface ScanOptions {
   canaryUrl?: string;
@@ -25,6 +26,9 @@ export interface ScanOptions {
   testHeaders?: boolean;
   verbose?: boolean;
   timeout?: number;
+  /** When true, send the generated plan over HTTP instead of emitting plan-only JSON. */
+  execute?: boolean;
+  slackWebhook?: string;
   redisAttackerHost?: string;
   redisAttackerPort?: number;
   redisWriteFile?: string;
@@ -137,6 +141,7 @@ async function main() {
     console.error("  --target=<url>           Target internal URL for bypass testing");
     console.error("  --test-headers           Test header injection vectors");
     console.error("  --verbose                Verbose output");
+    console.error("  --execute                Send payloads over HTTP (default: plan-only JSON)");
     console.error("  --timeout=<ms>           Timeout per request in ms (default: 5000)");
     console.error("  --slack-webhook=<url>    Slack webhook for notifications");
     console.error("  --redis-host=<host>      Redis attack: attacker host");
@@ -170,10 +175,13 @@ async function main() {
       options.testHeaders = true;
     } else if (arg === "--verbose") {
       options.verbose = true;
+    } else if (arg === "--execute") {
+      options.execute = true;
     } else if (arg.startsWith("--timeout=")) {
       options.timeout = parseInt(arg.slice(arg.indexOf("=") + 1), 10);
     } else if (arg.startsWith("--slack-webhook=")) {
       slackWebhook = arg.slice(arg.indexOf("=") + 1);
+      options.slackWebhook = slackWebhook;
     } else if (arg.startsWith("--redis-host=")) {
       options.redisAttackerHost = arg.slice(arg.indexOf("=") + 1);
     } else if (arg.startsWith("--redis-port=")) {
@@ -189,9 +197,24 @@ async function main() {
 
   const result = runSsrfScan(targetUrl, parameter, options);
 
+  if (options.execute) {
+    const outcome: SsrfExecutionOutcome = await executeSsrfPlan(targetUrl, parameter, result, {
+      timeoutMs: options.timeout ?? 5000,
+      maxAttempts: options.max,
+      slackWebhook: options.slackWebhook,
+      verbose: options.verbose
+    });
+    if (options.verbose) {
+      console.error(`[INFO] Executed ${outcome.attempts} payloads. confirmed=${outcome.confirmed} phase=${outcome.phase}`);
+    }
+    console.log(JSON.stringify(outcome, null, 2));
+    process.exitCode = outcome.confirmed > 0 ? 0 : 1;
+    return;
+  }
+
   if (options.verbose) {
     console.error(`[INFO] Scan complete. ${result.length} payloads generated.`);
-    console.error(`[INFO] To execute payloads, use enigma-ssrf with a target or integrate with your testing framework.`);
+    console.error(`[INFO] Pass --execute to send payloads over HTTP, or integrate with your testing framework.`);
   }
 
   console.log(JSON.stringify(result));
