@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+- Machine batch payload command (`cli/commands/payloads.ts`, bin `enigma-payloads`) — deterministic JSON candidates per context for the Mastermind-Ai Python bridge (`mastermind_core/enigma_bridge.py`)
 - SSRF network scanning with port and service identification
 - XSS CSP bypass cascade expansion (6 → 13 techniques)
 - XSS learning loop feedback integration

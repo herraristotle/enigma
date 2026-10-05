@@ -4,10 +4,12 @@
   "type": "module",
   "bin": {
     "enigma": "./cli/commands/run.ts",
-    "enigma-ssrf": "./cli/commands/ssrf/index.ts"
+    "enigma-ssrf": "./cli/commands/ssrf/index.ts",
+    "enigma-payloads": "./cli/commands/payloads.ts"
   },
   "scripts": {
     "run": "node --experimental-strip-types ./cli/commands/run.ts",
+    "payloads": "node --experimental-strip-types ./cli/commands/payloads.ts",
     "init": "node --experimental-strip-types ./cli/commands/init.ts",
     "next": "node --experimental-strip-types ./cli/commands/next.ts",
     "observe": "node --experimental-strip-types ./cli/commands/observe.ts",

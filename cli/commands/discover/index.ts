@@ -41,7 +41,7 @@ export async function discoverSurfaces(target: string, caidoEndpoint = "http://1
           type: "query",
           score,
           rationale,
-          command: \`enigma run "\${urlObj.origin}\${urlObj.pathname}" "\${key}"\`
+          command: `enigma run "${urlObj.origin}${urlObj.pathname}" "${key}"`
         });
       }
 
@@ -54,8 +54,8 @@ export async function discoverSurfaces(target: string, caidoEndpoint = "http://1
             parameter: header,
             type: "header",
             score: 60,
-            rationale: \`Commonly logged or reflected header: \${header}\`,
-            command: \`enigma run "\${req.url}" "\${header}" --inject-header="\${header}"\`
+            rationale: `Commonly logged or reflected header: ${header}`,
+            command: `enigma run "${req.url}" "${header}" --inject-header="${header}"`
           });
         }
       }
@@ -71,7 +71,7 @@ export async function discoverSurfaces(target: string, caidoEndpoint = "http://1
               type: "cookie",
               score: 40,
               rationale: "Cookie value might be reflected or used in DOM",
-              command: \`enigma run "\${req.url}" "\${cookie}" --cookie="\${req.headers["cookie"]}"\`
+              command: `enigma run "${req.url}" "${cookie}" --cookie="${req.headers["cookie"]}"`
             });
           }
         }
@@ -88,7 +88,7 @@ export async function discoverSurfaces(target: string, caidoEndpoint = "http://1
               type: "body",
               score: 75,
               rationale: "JSON body parameter",
-              command: \`enigma run "\${req.url}" "\${key}"\` // Needs POST adapter in runner
+              command: `enigma run "${req.url}" "${key}"` // Needs POST adapter in runner
             });
           }
         } catch (_) { /* invalid json */ }
@@ -102,9 +102,9 @@ export async function discoverSurfaces(target: string, caidoEndpoint = "http://1
             parameter: key,
             type: "body",
             score: 80,
-            rationale: \`Form parameter (\${value.length > 50 ? 'long' : 'short'})\`,
+            rationale: `Form parameter (${value.length > 50 ? 'long' : 'short'})`,
             // Provide a stored XSS example command
-            command: \`enigma run "\${urlObj.origin}\${urlObj.pathname}" "\${key}" --form="\${req.body}" --observe="\${urlObj.origin}/"\`
+            command: `enigma run "${urlObj.origin}${urlObj.pathname}" "${key}" --form="${req.body}" --observe="${urlObj.origin}/"`
           });
         }
       }
@@ -116,7 +116,7 @@ export async function discoverSurfaces(target: string, caidoEndpoint = "http://1
         type: "path",
         score: 50,
         rationale: "Location hash for DOM XSS",
-        command: \`enigma run "\${req.url}" "hash" --source=hash\`
+        command: `enigma run "${req.url}" "hash" --source=hash`
       });
     }
 
@@ -131,24 +131,24 @@ export async function discoverSurfaces(target: string, caidoEndpoint = "http://1
       });
 
   } catch (error: any) {
-    console.warn(\`Caido integration unavailable: \${error.message}\`);
+    console.warn(`Caido integration unavailable: ${error.message}`);
     console.warn("Returning mock data for demonstration.");
     return [
       {
-        url: \`https://\${target}/search?q=test\`,
+        url: `https://${target}/search?q=test`,
         parameter: "q",
         type: "query",
         score: 90,
         rationale: "Search query parameter (highly likely to reflect)",
-        command: \`enigma run "https://\${target}/search" "q"\`
+        command: `enigma run "https://${target}/search" "q"`
       },
       {
-        url: \`https://\${target}/profile\`,
+        url: `https://${target}/profile`,
         parameter: "bio",
         type: "body",
         score: 85,
         rationale: "Profile bio form field (potential stored XSS)",
-        command: \`enigma run "https://\${target}/profile" "bio" --form="bio=test&user=1" --observe="https://\${target}/user/1"\`
+        command: `enigma run "https://${target}/profile" "bio" --form="bio=test&user=1" --observe="https://${target}/user/1"`
       }
     ];
   }
@@ -178,9 +178,9 @@ function scoreInjectionPoint(key: string, value: string, type: string): { score:
 
 async function fetchCaidoRequests(target: string, endpoint: string, token: string): Promise<CaidoRequest[]> {
   // Try to connect to Caido GraphQL API
-  const query = \`
+  const query = `
     query {
-      requests(filter: { host: { like: "%\${target}%" } }, first: 50) {
+      requests(filter: { host: { like: "%${target}%" } }, first: 50) {
         edges {
           node {
             id
@@ -195,19 +195,19 @@ async function fetchCaidoRequests(target: string, endpoint: string, token: strin
         }
       }
     }
-  \`;
+  `;
 
   const response = await fetch(endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...(token ? { "Authorization": \`Bearer \${token}\` } : {})
+      ...(token ? { "Authorization": `Bearer ${token}` } : {})
     },
     body: JSON.stringify({ query })
   });
   
   if (!response.ok) {
-     throw new Error(\`GraphQL HTTP Error: \${response.status}\`);
+     throw new Error(`GraphQL HTTP Error: ${response.status}`);
   }
 
   const { data } = await response.json();
@@ -261,7 +261,7 @@ async function main() {
     else if (arg.startsWith("--token=")) token = arg.split("=")[1];
   }
 
-  console.log(\`[*] Discovering injection surfaces for \${target} via Caido (\${endpoint})...\`);
+  console.log(`[*] Discovering injection surfaces for ${target} via Caido (${endpoint})...`);
   const surfaces = await discoverSurfaces(target, endpoint, token);
 
   if (surfaces.length === 0) {
@@ -269,18 +269,18 @@ async function main() {
     return;
   }
 
-  console.log(\`\n[+] Found \${surfaces.length} high-probability injection points:\n\`);
+  console.log(`\n[+] Found ${surfaces.length} high-probability injection points:\n`);
 
   for (const s of surfaces.slice(0, 10)) { // Top 10
     const color = s.score >= 80 ? "\x1b[31m" : s.score >= 50 ? "\x1b[33m" : "\x1b[32m"; // Red, Yellow, Green
-    console.log(\`\${color}[Score: \${s.score.toString().padStart(3, " ")}]\x1b[0m \${s.type.toUpperCase()}: \${s.parameter}\`);
-    console.log(\`    Rationale: \${s.rationale}\`);
-    console.log(\`    Command:   \x1b[36m\${s.command}\x1b[0m\`);
+    console.log(`${color}[Score: ${s.score.toString().padStart(3, " ")}]\x1b[0m ${s.type.toUpperCase()}: ${s.parameter}`);
+    console.log(`    Rationale: ${s.rationale}`);
+    console.log(`    Command:   \x1b[36m${s.command}\x1b[0m`);
     console.log("-".repeat(60));
   }
 }
 
-// Only run CLI entrypoint if executed directly directly (not imported)
-if (import.meta.url === \`file://\${process.argv[1]}\`) {
+// Only run CLI entrypoint if executed directly (not imported)
+if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith("discover/index.ts") || process.argv[1]?.endsWith("discover\\index.ts")) {
   void main();
 }
