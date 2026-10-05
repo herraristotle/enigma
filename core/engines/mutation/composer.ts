@@ -127,6 +127,45 @@ export class MutationComposer {
     }
   }
 
+  /**
+   * Union-merge another composer's live knowledge state (full bidirectional
+   * transfer for stored-XSS workflow stages). Does NOT overwrite `context` —
+   * each stage keeps its own detected context; blockers/footholds/tested
+   * payloads/CSP/Angular knowledge flow both parent→stage and stage→parent.
+   */
+  absorbState(other: KnowledgeState): void {
+    const mergeSet = (target: Set<string>, source: Set<string>) => source.forEach((v) => target.add(v));
+    const mergeMap = (target: Map<string, Set<string>>, source: Map<string, Set<string>>) => {
+      for (const [key, values] of source) {
+        const current = target.get(key) ?? new Set<string>();
+        mergeSet(current, values);
+        target.set(key, current);
+      }
+    };
+
+    mergeMap(this.state.blockedFamilies, other.blockedFamilies);
+    mergeMap(this.state.successfulFamilies, other.successfulFamilies);
+    for (const foothold of other.footholds) {
+      if (!this.state.footholds.some((f) => f.family === foothold.family && f.value === foothold.value)) {
+        this.state.footholds.push(foothold);
+      }
+    }
+    mergeSet(this.state.testedPayloads, other.testedPayloads);
+    mergeSet(this.state.blockedTags, other.blockedTags);
+    for (const event of other.successfulEvents) {
+      if (!this.state.successfulEvents.includes(event)) this.state.successfulEvents.push(event);
+    }
+    for (const search of other.binarySearches) {
+      if (!this.state.binarySearches.includes(search)) this.state.binarySearches.push(search);
+    }
+    for (const note of other.notes) {
+      if (!this.state.notes.includes(note)) this.state.notes.push(note);
+    }
+    if (other.cspDetected) this.setCspDetected(true);
+    if (!this.state.cspHeaderRaw && other.cspHeaderRaw) this.setCspRawHeader(other.cspHeaderRaw);
+    if (!this.state.angularVersion && other.angularVersion) this.setAngularVersion(other.angularVersion);
+  }
+
   nextCandidates(): MutationCandidate[] {
     const candidates: MutationCandidate[] = [];
     const baseline = getBaselineForContext(this.state.context as never);

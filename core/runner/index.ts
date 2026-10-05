@@ -167,8 +167,8 @@ export class EnigmaRunner {
       const workflowResult = await this.executeWorkflow(target, parameter, this.options.workflow, composer, logger, learningLoop);
       if (workflowResult.firedAtStageIndex !== undefined) {
         // XSS fired at a workflow stage — merge attempts and return success
-        const allAttempts = [...attempts, ...workflowResult.stages.flatMap(s => 
-          s.executed ? [] : [{ payload: s.payload, result: { executed: s.executed, reflected: s.reflected, blocked: s.blocked } as BrowserObservation }]
+        const allAttempts = [...attempts, ...workflowResult.stages.map(s =>
+          ({ payload: s.payload, result: { executed: s.executed, reflected: s.reflected, blocked: s.blocked } as BrowserObservation })
         )];
         if (this.options.verbose) console.log(`[!!] Workflow stage ${workflowResult.firedAtStageIndex} (${this.options.workflow[workflowResult.firedAtStageIndex].name}) executed! XSS found.`);
         return this._buildResult(target, parameter, context, true, baseline.payload, allAttempts, composer, logger, learningLoop);
@@ -279,18 +279,11 @@ export class EnigmaRunner {
         }
       }
 
-      // Create stage-specific composer inheriting parent knowledge
+      // Create stage-specific composer with FULL parent knowledge transfer
+      // (blockers, footholds, tested payloads, binary-search learnings,
+      // CSP/Angular state) — absorbState covers everything exportState holds.
       const stageComposer = new MutationComposer(stageContext);
-      // Transfer parent knowledge
-      const parentState = composer.exportState();
-      stageComposer.setCspDetected(parentState.cspDetected as boolean);
-      if (parentState.cspHeaderRaw) stageComposer.setCspRawHeader(parentState.cspHeaderRaw as string);
-      if (parentState.angularVersion) stageComposer.setAngularVersion(parentState.angularVersion as string);
-      for (const foothold of parentState.footholds as Array<{family:string,value:string}>) {
-        stageComposer.absorbPartialSuccess(foothold.family, foothold.value);
-      }
-      // Note: full knowledge transfer would require deeper state reconstruction;
-      // this transfers footholds and CSP/Angular state which are the most critical.
+      stageComposer.absorbState(composer.state);
 
       // Test baseline
       const baseline = getBaselineForContext(stageContext as never);
@@ -298,6 +291,8 @@ export class EnigmaRunner {
       logger.record("workflow", `${stage.name}-baseline`, `${baseline.payload} => executed=${baselineResult.executed}`);
       
       if (baselineResult.executed) {
+        learningLoop.record("executed", baseline.payload, `workflow:${stage.name} baseline`);
+        composer.absorbState(stageComposer.state);
         return {
           firedAtStageIndex: i,
           stages: [...stageResults, {
@@ -311,6 +306,8 @@ export class EnigmaRunner {
           skippedStages: workflow.slice(i + 1).map((_, idx) => i + 1 + idx)
         };
       }
+      if (baselineResult.blocked) learningLoop.record("blocked", baseline.payload, `workflow:${stage.name} baseline`);
+      else if (baselineResult.reflected) learningLoop.record("reflected", baseline.payload, `workflow:${stage.name} baseline`);
 
       // Binary search and mutation cascade (simplified per stage)
       const binarySearch = await runBinarySearch(baseline.payload, this.browser);
@@ -337,6 +334,7 @@ export class EnigmaRunner {
             stagePayload = transformedPayload;
             stageReflected = result.reflected;
             stageBlocked = result.blocked;
+            learningLoop.record("executed", transformedPayload, `workflow:${stage.name} candidate`);
             break;
           }
         }
@@ -350,6 +348,11 @@ export class EnigmaRunner {
         blocked: stageBlocked,
         payload: stagePayload
       });
+
+      // Feedback edge: stage learnings (blockers inferred by binary search,
+      // tested payloads, footholds) merge back into the parent composer so
+      // the NEXT stage's candidate ordering is informed by this stage.
+      composer.absorbState(stageComposer.state);
 
       if (stageExecuted) {
         return {
