@@ -110,10 +110,12 @@ async function main(): Promise<void> {
         // Just print routing log and break or let routing work
         break;
       }
-      const { runBlindSsrfScan } = await import("./blind.ts");
+      const { runBlindSsrfScan, watchForCallbacks } = await import("./blind.ts");
       let dnsOnly = false;
       let watch = false;
       let canaryUrl: string | undefined;
+      let slackWebhook: string | undefined;
+      let watchTimeoutMs = 60_000;
       for (const arg of process.argv.slice(5)) {
         if (arg === "--dns-only") {
           dnsOnly = true;
@@ -121,10 +123,23 @@ async function main(): Promise<void> {
           watch = true;
         } else if (arg.startsWith("--canary=")) {
           canaryUrl = arg.slice(arg.indexOf("=") + 1);
+        } else if (arg.startsWith("--slack-webhook=")) {
+          slackWebhook = arg.slice(arg.indexOf("=") + 1);
+        } else if (arg.startsWith("--watch-timeout=")) {
+          const parsed = Number.parseInt(arg.slice(arg.indexOf("=") + 1), 10);
+          if (Number.isFinite(parsed) && parsed >= 0) watchTimeoutMs = parsed;
         }
       }
       const result = runBlindSsrfScan(targetUrl, parameter, { dnsOnly, watch, canaryUrl });
       console.log(JSON.stringify(result));
+      if (watch) {
+        await watchForCallbacks(canaryUrl || "http://localhost:8080/c/TOKEN", {
+          targetUrl,
+          parameter,
+          slackWebhook,
+          timeoutMs: watchTimeoutMs
+        });
+      }
       break;
     }
     default:

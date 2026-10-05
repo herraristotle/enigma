@@ -24,7 +24,7 @@ test("run command parses options and outputs JSON array of payload targets", () 
 });
 
 test("blind command parses options and outputs JSON array of OOB callbacks", () => {
-  const cmd = `node --experimental-strip-types "${scriptPath}" blind "https://target.com/webhook" "callback_url" --dns-only --watch`;
+  const cmd = `node --experimental-strip-types "${scriptPath}" blind "https://target.com/webhook" "callback_url" --dns-only --watch --watch-timeout=50`;
   const output = execSync(cmd, { encoding: "utf8" });
   const lines = output.trim().split("\n");
   const jsonStr = lines.find((l) => l.startsWith("[") || l.startsWith("{"));
