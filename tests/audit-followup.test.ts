@@ -3,7 +3,7 @@ import assert from "node:assert";
 import { generateIpObfuscations } from "../core/engines/ssrf/bypasses/ip-obfuscation.ts";
 import { generateParserConfusionPayloads } from "../core/engines/ssrf/bypasses/parser-confusion.ts";
 import { EXECUTION_CASCADE } from "../core/engines/mutation/executors.ts";
-import { DOM_CLOBBERING_CANDIDATES } from "../core/engines/mutation/structures.ts";
+import { DOM_CLOBBERING_CANDIDATES, ADVANCED_STRUCTURE_CANDIDATES } from "../core/engines/mutation/structures.ts";
 
 test("Audit follow-up — Tsai faraday bypass `0` host", () => {
   const obf = generateIpObfuscations("127.0.0.1");
@@ -92,4 +92,28 @@ test("Audit follow-up — DOM clobber entries deduplicated", () => {
   const names = DOM_CLOBBERING_CANDIDATES.map(c => c.name);
   const unique = new Set(names);
   assert.strictEqual(unique.size, names.length, `duplicate DOM clobber names: ${JSON.stringify(names)}`);
+});
+
+test("Audit follow-up — Heyes Ch.6 prototype pollution gadgets present", () => {
+  const names = new Set(ADVANCED_STRUCTURE_CANDIDATES.map(c => c.name));
+  const expected = [
+    "pp_proto_onerror",
+    "pp_constructor_prototype",
+    "pp_innerHTML_gadget",
+    "pp_srcdoc_gadget",
+    "pp_isAdmin_escalation",
+    "pp_shell_rce",
+    "pp_qs_bracket",
+    "pp_json_proto",
+    "pp_json_constructor",
+  ];
+  for (const name of expected) {
+    assert.ok(names.has(name), `ADVANCED_STRUCTURE_CANDIDATES missing Heyes Ch.6 PP gadget: ${name}`);
+  }
+});
+
+test("Audit follow-up — ADVANCED_STRUCTURE_CANDIDATES names unique", () => {
+  const names = ADVANCED_STRUCTURE_CANDIDATES.map(c => c.name);
+  const unique = new Set(names);
+  assert.strictEqual(unique.size, names.length, `duplicate structure names found`);
 });
