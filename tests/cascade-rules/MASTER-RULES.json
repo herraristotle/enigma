@@ -96,7 +96,9 @@
       "slash",
       "formfeed",
       "vertical_tab",
-      "js_comment"
+      "js_comment",
+      "line_separator",
+      "paragraph_separator"
     ],
     "tag": [
       "svg",

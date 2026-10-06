@@ -427,6 +427,8 @@ export class MutationComposer {
       case "space": {
         // MASTER-RULES uses symbolic names; map to real whitespace/comment bytes.
         // Competitor SPACE cascade: tab → newline → slash → formfeed → VT → JS comment
+        // Heyes Ch.3: JS line terminators U+2028/U+2029 are valid whitespace in
+        // script contexts and bypass WAFs that only strip ASCII whitespace.
         const spaceMap: Record<string, string> = {
           tab: "\t",
           newline: "\n",
@@ -434,7 +436,9 @@ export class MutationComposer {
           formfeed: "\f",
           vertical_tab: "\v",
           js_comment: "/**/",
-          "/**/": "/**/"
+          "/**/": "/**/",
+          line_separator: " ",
+          paragraph_separator: " ",
         };
         const replacement = spaceMap[alternative] ?? alternative;
         return payload.replaceAll(" ", replacement);
