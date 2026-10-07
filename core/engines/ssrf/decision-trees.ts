@@ -131,6 +131,12 @@ export interface SsrfPayloadPlanOptions {
   headers?: Record<string, string>;
   body?: string;
   canaryUrl?: string;
+  /**
+   * When set, the canary branch emits interactsh payloads from this factory
+   * (stable correlation-id middle label) instead of minting fresh
+   * CanaryRegistry UUIDs — which break server-side correlation.
+   */
+  oobPayload?: () => string;
   /** When true, include header-injection SSRF vectors (X-Forwarded-*, Referer, etc.). */
   testHeaders?: boolean;
   /**
@@ -455,48 +461,59 @@ export function generateSsrfPayloadPlan(options: SsrfPayloadPlanOptions): SsrfPa
 
   // 8. canary (OOB confirmation)
   if (options.canaryUrl) {
-    let domain = options.canaryUrl;
-    try {
-      if (domain.includes("://")) {
-        const url = new URL(domain);
-        domain = url.hostname;
+    // interactsh path: payloads come from the registered correlation-id so
+    // poll /interactions can attribute callbacks to this session.
+    if (options.oobPayload) {
+      plan.push({
+        category: "canary",
+        payload: options.oobPayload(),
+        technique: "interactsh",
+        detail: "Out-of-band interactsh HTTP canary payload"
+      });
+    } else {
+      let domain = options.canaryUrl;
+      try {
+        if (domain.includes("://")) {
+          const url = new URL(domain);
+          domain = url.hostname;
+        }
+      } catch {}
+
+      const registry = new CanaryRegistry();
+      const token = registry.register({
+        target: options.targetUrl,
+        parameter: "url",
+        payload: "PLACEHOLDER",
+        technique: "canary"
+      }, domain);
+
+      const record = registry.get(token);
+      if (record) {
+        plan.push({
+          category: "canary",
+          payload: record.callbacks.directHttp,
+          technique: "directHttp",
+          detail: "Out-of-band HTTP canary payload"
+        });
+        plan.push({
+          category: "canary",
+          payload: record.callbacks.dnsOnly,
+          technique: "dnsOnly",
+          detail: "Out-of-band DNS canary payload"
+        });
+        plan.push({
+          category: "canary",
+          payload: record.callbacks.pathIdentified,
+          technique: "pathIdentified",
+          detail: "Out-of-band path identified canary payload"
+        });
+        plan.push({
+          category: "canary",
+          payload: record.callbacks.redirectChain,
+          technique: "redirectChain",
+          detail: "Out-of-band redirect chain canary payload"
+        });
       }
-    } catch {}
-
-    const registry = new CanaryRegistry();
-    const token = registry.register({
-      target: options.targetUrl,
-      parameter: "url",
-      payload: "PLACEHOLDER",
-      technique: "canary"
-    }, domain);
-
-    const record = registry.get(token);
-    if (record) {
-      plan.push({
-        category: "canary",
-        payload: record.callbacks.directHttp,
-        technique: "directHttp",
-        detail: "Out-of-band HTTP canary payload"
-      });
-      plan.push({
-        category: "canary",
-        payload: record.callbacks.dnsOnly,
-        technique: "dnsOnly",
-        detail: "Out-of-band DNS canary payload"
-      });
-      plan.push({
-        category: "canary",
-        payload: record.callbacks.pathIdentified,
-        technique: "pathIdentified",
-        detail: "Out-of-band path identified canary payload"
-      });
-      plan.push({
-        category: "canary",
-        payload: record.callbacks.redirectChain,
-        technique: "redirectChain",
-        detail: "Out-of-band redirect chain canary payload"
-      });
     }
   }
 

@@ -110,7 +110,7 @@ async function main(): Promise<void> {
         // Just print routing log and break or let routing work
         break;
       }
-      const { runBlindSsrfScan, watchForCallbacks } = await import("./blind.ts");
+      const { runBlindSsrfScan, watchForCallbacks, resolveInteractshWatch } = await import("./blind.ts");
       let dnsOnly = false;
       let watch = false;
       let canaryUrl: string | undefined;
@@ -130,6 +130,10 @@ async function main(): Promise<void> {
           if (Number.isFinite(parsed) && parsed >= 0) watchTimeoutMs = parsed;
         }
       }
+      // Self-hosted interactsh: mint canary + poll /interactions when
+      // INTERACTSH_SERVER + INTERACTSH_DOMAIN set and register succeeds.
+      const oob = await resolveInteractshWatch(canaryUrl);
+      if (oob) canaryUrl = oob.canaryUrl;
       const result = runBlindSsrfScan(targetUrl, parameter, { dnsOnly, watch, canaryUrl });
       console.log(JSON.stringify(result));
       if (watch) {
@@ -137,7 +141,8 @@ async function main(): Promise<void> {
           targetUrl,
           parameter,
           slackWebhook,
-          timeoutMs: watchTimeoutMs
+          timeoutMs: watchTimeoutMs,
+          pollFn: oob?.pollFn
         });
       }
       break;

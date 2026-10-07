@@ -1,5 +1,6 @@
 import { CanaryRegistry, NotificationManager, SlackNotification, TerminalNotification, type ScanResult } from "../../../core/engines/ssrf/canary.ts";
 import { assessImpact } from "../../../core/engines/ssrf/decision-trees.ts";
+import { InteractshClient, oobConfigFromEnv } from "../../../core/engines/ssrf/interactsh.ts";
 
 export interface BlindScanOptions {
   dnsOnly?: boolean;
@@ -26,6 +27,41 @@ export function buildBlindNotifications(slackWebhook?: string): NotificationMana
   manager.addChannel(new TerminalNotification());
   if (slackWebhook) manager.addChannel(new SlackNotification(slackWebhook));
   return manager;
+}
+
+/**
+ * Adapt an interactsh client to the watchForCallbacks pollFn shape.
+ * The derived pollUrl is ignored — interactsh polls its own
+ * /interactions?id&secret endpoint — so the legacy /poll derivation
+ * (watchForCallbacks lines below) stays untouched for custom canaries.
+ * Disabled/unregistered client → null (watch keeps polling until timeout).
+ */
+export function createInteractshPollFn(
+  client: InteractshClient,
+): (pollUrl: string) => Promise<string | null> {
+  return async (): Promise<string | null> => {
+    const hits = await client.pollOnce();
+    return hits.length > 0 ? JSON.stringify(hits) : null;
+  };
+}
+
+/**
+ * Resolve OOB-backed canary + poller from INTERACTSH_* env (shared by the
+ * blind.ts and index.ts entrypoints). Returns null when env is absent or
+ * register() fails — callers keep the legacy CanaryRegistry + /poll path.
+ */
+export async function resolveInteractshWatch(
+  canaryUrl?: string,
+): Promise<{ client: InteractshClient; canaryUrl: string; pollFn: (pollUrl: string) => Promise<string | null> } | null> {
+  const cfg = oobConfigFromEnv();
+  if (!cfg) return null;
+  const client = new InteractshClient(cfg);
+  if (!(await client.register())) return null;
+  return {
+    client,
+    canaryUrl: canaryUrl || `http://${client.nextPayload()}`,
+    pollFn: createInteractshPollFn(client),
+  };
 }
 
 export function runBlindSsrfScan(
@@ -103,6 +139,12 @@ async function main() {
     }
   }
 
+  // Self-hosted interactsh (INTERACTSH_SERVER + INTERACTSH_DOMAIN): mint the
+  // canary from the correlation payload and poll /interactions directly.
+  // Absent env or failed register → legacy CanaryRegistry + /poll path.
+  const oob = await resolveInteractshWatch(canaryUrl);
+  if (oob) canaryUrl = oob.canaryUrl;
+
   const result = runBlindSsrfScan(targetUrl, parameter, { dnsOnly, watch, canaryUrl });
   console.log(JSON.stringify(result));
 
@@ -111,7 +153,8 @@ async function main() {
       targetUrl,
       parameter,
       slackWebhook,
-      timeoutMs: watchTimeoutMs
+      timeoutMs: watchTimeoutMs,
+      pollFn: oob?.pollFn
     });
   }
 }
