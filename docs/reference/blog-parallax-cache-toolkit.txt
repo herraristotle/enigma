@@ -1,0 +1,430 @@
+TITLE: Parallax: A Research-Based Cache Exploitation Toolkit | trace37 labs — offensive security research & services
+
+ Parallax: A Research-Based Cache Exploitation Toolkit | trace37 labs — offensive security research & services 
+ skip to content ↑ labs .trace37 blog trust transitions disclosures tools services about private research search 
+ 2026-02-17
+· 53 min read Parallax: A Research-Based Cache Exploitation Toolkit A deep technical exploration of Parallax — a differential cache analysis toolkit built from scratch across 13,000+ lines of Python and Bash, implementing CDN-aware fingerprinting, binary search header testing, byte-level path fuzzing, endpoint discovery, automated weaponization, and exploit classification for web cache poisoning and deception. cache-poisoning cache-deception cdn-security security-tooling parallax The gap between what the cache thinks a request is and what the origin thinks it is — that’s the cache-specific attack surface. Web caching is the invisible backbone of the modern internet. Every CDN, every reverse proxy, every framework-level cache makes the same fundamental promise: store responses and serve them faster. But caching introduces a question that turns out to be devastatingly difficult to answer correctly: what makes two requests “the same”? The answer is the cache key. And every vulnerability in this toolkit exploits the gap between what the cache thinks the key is and what the origin server actually processes. Over the past several months, I built a differential cache analysis toolkit from scratch — 13,000+ lines of Python and Bash across twelve tools — that systematically finds these gaps. Not by guessing. Not by running default wordlists and hoping for the best. By fingerprinting infrastructure, reverse-engineering cache keys empirically, discovering cached endpoints, fuzzing every byte value in the URL path, mining real-world traffic data for headers nobody else tests, auto-classifying the exploits it finds, and weaponizing confirmed findings into verified proof-of-concept chains. This post is about what I built, how it works, and the research and design decisions behind every component. # 
+Credit The techniques and methodology implemented in this toolkit draw from the published work of several researchers: James Kettle — “Practical Web Cache Poisoning” (2018) and “Web Cache Entanglement” (2020), which defined and extended the cache poisoning attack class Martin Doyhenard — “Gotta Cache ‘Em All” (DEF CON 32, 2024), the definitive work on cache deception via path confusion and byte-level delimiter differentials Iustin Ladunca (Youstin) — BigQuery-driven header harvesting from HTTP Archive and industrialised cache poisoning discovery (~$40K, 70+ bugs) Hoang et al. — “HCache: The Internet’s Invisible Enemy” (ACM CCS 2024), the most systematic CP-DoS taxonomy to date with 14 attack types Golinelli and Crispo — “Web Cache Deception Escalates!” (RAID 2024), hidden cache detection via timing analysis and supplementary cache busting techniques Berto et al. — (CLOSER 2024), identifying Cloudflare email obfuscation as a false positive source in WCD detection # 
+What I Wanted to Build I wanted a cache exploitation toolkit that did everything I found myself doing manually — but faster, smarter, and without the gaps. Specifically: CDN-aware intelligent scanning — know what CDN is in play, skip headers that are already keyed, and use CDN-specific oracles when available Multi-signal response diffing — detect influence beyond simple string reflection: status changes, body size deltas, new response headers, security header modifications Integrated WCP + WCD — cache poisoning (injecting content) and cache deception (stealing content) tested in a single pipeline, because they share infrastructure fingerprinting Data-driven wordlists — headers mined from real web traffic via BigQuery, not static lists that go stale Automated exploit classification — when I find an unkeyed input, tell me what the impact is: XSS, redirect, CP-DoS, session fixation, CSP bypass Scalable architecture — binary search to test 10,000+ headers in ~560 requests, not 10,000 sequential ones I set out to build something purpose-built for the problem. # 
+Research Foundations This toolkit stands on the shoulders of several years of cache exploitation research, both academic and practitioner-driven. Understanding the lineage matters, because every design decision traces back to a specific insight from this body of work. # 
+James Kettle and the Birth of Cache Poisoning (2018-2020) James Kettle’s “Practical Web Cache Poisoning” (2018) defined the attack class. His core insight: HTTP headers that influence the response but aren’t included in the cache key are effectively invisible inputs. An attacker who finds one can inject content that gets served to every subsequent visitor. His follow-up, “Web Cache Entanglement” (2020), extended this to unkeyed query parameters, fat GET requests (where body parameters override query parameters but the body is never part of the cache key), and parameter cloaking (exploiting parser differentials between the cache and the origin). I took his foundational idea — automated unkeyed input discovery — and rebuilt it with CDN awareness, multi-signal diffing, binary search for scalability, and a 10,000-header wordlist. # 
+Martin Doyhenard and Path Confusion (DEF CON 2024) Martin’s “Gotta Cache ‘Em All” talk at DEF CON 32 is the definitive work on cache deception via path confusion. His key contribution: the mismatch between how CDNs and origin servers interpret specific bytes in URL paths is not random — it’s systematic and predictable per vendor/framework combination. A semicolon ( ; ) is a matrix variable delimiter in Spring. A null byte ( %00 ) truncates paths in OpenLiteSpeed. A dot ( . ) is a format suffix in Rails. If the CDN doesn’t recognize these as delimiters but the origin does, you get cache deception: the origin serves /profile while the CDN caches it as /profile;anything.css . My cache_diff tool automates exactly this: byte-level differential fuzzing across 256 byte values, three path positions, and three encoding levels, per endpoint. That’s up to 2,304 probes per URL, where manual testing typically covers five to ten known delimiters. # 
+Iustin Ladunca (Youstin) and the Data Advantage (~$40K, 70+ bugs) Youstin industrialised cache poisoning discovery. His 2024 write-up describes how he used Google BigQuery against the HTTP Archive dataset to build a header wordlist from real web traffic — headers that actually appear in the wild but aren’t in any static wordlist. He extracted Vary header values to identify which headers CDNs actually key on, then tested the rest as potential unkeyed inputs. Eighty percent of his findings were CP-DoS via unkeyed headers. He found bugs in Apache Traffic Server, Cloudflare, GitHub ($7,500), GitLab ($4,850), and Fastly. I took his BigQuery approach and scaled it. My header_harvest tool queries HTTP Archive for uncommon response headers (the “long tail” appearing on 10-5,000 sites) and Vary-listed headers. Combined with IANA’s HTTP Field Name Registry and CDN-internal header documentation, I assembled a 10,244-header wordlist. # 
+HCache and “The Internet’s Invisible Enemy” (CCS 2024) Hoang et al.’s “HCache: The Internet’s Invisible Enemy” (ACM CCS 2024) is the most systematic empirical study of Cache Poisoned Denial of Service to date. They tested the Tranco Top 1K against 14 distinct CP-DoS attack types and found 225 vulnerable websites — far more than previous estimates suggested. Their key insight: most CP-DoS scanners only test “obvious” payloads — oversized headers, conflicting Transfer-Encoding values, bogus Content-Length on GET requests. These are the attacks that Nguyen-Phuc et al. originally described in 2019. But HCache showed that five additional attack classes account for a significant portion of real-world CP-DoS: RFC-compliant malformed conditionals (HCache attacks 3, 5, 6): Headers like If-Match , If-Range , and If-Modified-Since with syntactically valid but semantically wrong values. If-Match: 123456789 isn’t a valid ETag format — origins respond with 412 Precondition Failed. If-Modified-Since: Thu, 01 Jan 2099 00:00:00 GMT is a valid HTTP date in the future — origins respond with 304 Not Modified (no content body). If these error responses get cached, every subsequent user gets denied the actual page content. The headers themselves are perfectly legitimate RFC 7232/7233 headers with valid syntax — they just provoke error responses. WAFs don’t flag them because there’s nothing malicious about a conditional request. Malformed range requests : Range: bytes=cow (non-numeric), Range: bytes=9-4 (reversed), Range: bytes=-0 (zero suffix-length), Range: invalid (missing bytes= prefix). Each triggers a 416 Range Not Satisfiable or 400 Bad Request from standards-compliant origins. These are particularly dangerous because many CDNs pass Range headers through to the origin without validation. Protocol upgrade poisoning : Upgrade: HTTP/0.9 , Upgrade: WebSocket (without the required handshake headers), Upgrade: h2c (cleartext HTTP/2 when the connection isn’t TLS-appropriate). Origins that respect RFC 7230 respond with 426 Upgrade Required. Cached 426 responses deny service and confuse clients. WAF-triggered denial : This is the most counterintuitive class. A WAF designed to protect the site becomes the denial vector. Sending User-Agent: sqlmap/1.0 or X-Custom-Header: ' OR 1=1 -- triggers a 403 from the WAF layer. If the CDN caches the WAF’s block page (which many do — the block page is a “valid” 403 response from the CDN’s perspective), every subsequent user gets the block page instead of the real content. The attacker never even reaches the origin. HCache found this pattern on sites protected by Cloudflare, Akamai, and Imperva. Metacharacter injection (HCache attack 10): Control characters embedded in header values — SOH ( \x01 ), BS ( \x08 ), ESC ( \x1b ), DEL ( \x7f ) — cause protocol-level errors or trigger WAF anomaly detection that produces cacheable error responses. Not all control characters work: h11 (Python’s HTTP/1.1 parser, used by httpx and uvicorn) rejects \x00 , \x0A , \x0B , \x0C , \x0D at the transport layer. But the remaining control bytes pass through h11 and can trigger errors on the origin. Before reading this paper, my scanner had 9 CP-DoS payloads — all in the “oversized/conflicting” category. After implementing HCache’s attack taxonomy and continuing to expand the payload set, it now has 56 payloads across four classified attack types: traditional CP-DoS (oversized headers, conflicting encodings), RFC-compliant malformed values (conditionals, ranges, upgrades, metacharacters), WAF poisoning (16 tool signatures and attack patterns), and illegal header name injection (5 raw-socket payloads for Akamai). The scanner covers all 14 of HCache’s attack types. The 304-as-denial case deserves special attention. A cached 304 Not Modified is arguably worse than a cached 400 or 500 — because the 304 has no body. Users get a completely empty response. And because If-Modified-Since is a standard conditional header that CDNs routinely pass through, many caching configurations don’t strip it. The attack requires only a single request with a future date. # 
+The RAID 2024 Paper and Hidden Caches Golinelli and Crispo’s “Web Cache Deception Escalates!” (RAID 2024) revealed that 5.8% of Tranco Top 50K websites have caches that don’t advertise themselves via standard headers. No X-Cache , no CF-Cache-Status , no Age header. They’re invisible. Their detection method: send paired HTTP/2 requests simultaneously — one with a fresh cachebuster, one reusing a fixed cachebuster — and compare timing. If the fixed request is consistently faster, there’s a cache. They used Welch’s t-test for statistical significance. My cache_timing tool implements their algorithm. It also contributed a practical finding I incorporated into the HTTP client: query-string cache busting only works on 60.4% of sites. Adding Origin , X-Forwarded-Host , and X-Forwarded-Scheme headers as supplementary cache busters increases coverage to 84.3%. # 
+The ChatGPT Account Takeover and the Cloudflare Bypass Two case studies directly shaped the toolkit’s design. The ChatGPT ATO ($6,500): Cloudflare didn’t decode %2F..%2F in paths, but OpenAI’s backend did. A URL like /share/%2F..%2Fapi/auth/session stayed encoded for Cloudflare’s cache key (it matched the /share/* caching rule) but the backend resolved it to /api/auth/session and returned authentication tokens. Victim visits the link, their tokens get cached, attacker reads the cache. This is exactly the kind of encoding-level normalization mismatch that cache_diff tests systematically at single, double, and triple encoding depths. The Cloudflare duplicate header bypass: Cloudflare deployed a WAF rule adding X-Forwarded-Host to the cache key to prevent poisoning. But the cache key evaluation only checked the first instance of duplicate headers. Sending two X-Forwarded-Host headers — one clean (matching the real host), one malicious — meant the cache keyed on the clean value while the backend processed both. My cache_poison tool tests this explicitly via its duplicate header bypass module. # 
+Architecture: A Five-Stage Pipeline The toolkit is a pipeline, not a single tool. Each stage feeds the next, and the whole is greater than the sum of its parts. The current pipeline runs: probe → discover → per-endpoint diff + poison → weaponize . Discovery runs early (stage 2) to find real cached endpoints on the target. Diff and poison then scan each confirmed-cached URL individually instead of testing a single default path. Weaponize turns confirmed findings into verified proof-of-concept exploit chains. %%{init: {'theme': 'dark', 'themeVariables': { 'lineColor': '#58a6ff', 'primaryTextColor': '#fff'}}}%%
+flowchart TD
+ HH["header_harvest<br/>(BigQuery)<br/>10K headers"] --> CP["cache_poison<br/>(WCP: unkeyed<br/>header scanner)"]
+ CProbe["cache_probe<br/>(fingerprint +<br/>key reversal)"] --> DISC["discover<br/>(endpoint discovery<br/>+ cacheability)"]
+ CT["cache_timing<br/>(hidden cache<br/>detection)"] --> CProbe
+ DISC --> CD["cache_diff<br/>(WCD: byte-level<br/>path fuzzing)"]
+ DISC --> CP
+ CD --> WP["weaponize<br/>(PoC generation<br/>+ impact scoring)"]
+ CP --> WP
+ WP --> BS["batch_scan<br/>(orchestration,<br/>multi-URL)"]
+ style HH fill:#264653,stroke:#2a9d8f,color:#fff
+ style CProbe fill:#264653,stroke:#2a9d8f,color:#fff
+ style CT fill:#264653,stroke:#2a9d8f,color:#fff
+ style DISC fill:#264653,stroke:#e9c46a,color:#fff
+ style CP fill:#2a9d8f,stroke:#58a6ff,color:#fff
+ style CD fill:#2a9d8f,stroke:#58a6ff,color:#fff
+ style WP fill:#e76f51,stroke:#f4a261,color:#fff
+ style BS fill:#1e6b54,stroke:#2a9d8f,color:#fff
+ # 
+Stage 1: Data Collection — header_harvest (308 lines) This is where the data advantage comes from. Instead of shipping a static wordlist, I query Google BigQuery against the HTTP Archive — the world’s largest public dataset of real HTTP responses, crawled monthly across millions of domains. Two queries power the wordlist: Uncommon headers query : Find response headers appearing on 10 to 5,000 sites. Below 10 is noise. Above 5,000, everyone already tests for it. The sweet spot is the long tail — headers that real servers send but no wordlist includes. My January 2026 harvest yielded 8,595 uncommon headers. -- Pseudocode: query HTTP Archive for response headers
+ -- appearing on 10-5,000 distinct sites (the long tail)
+ SELECT header_name, COUNT ( DISTINCT site) AS sites 
+ FROM httparchive_responses 
+ GROUP BY header_name 
+ HAVING sites BETWEEN [low_threshold] AND [high_threshold] 
+ ORDER BY sites ASC 
+ Vary analysis query (inspired by Youstin’s technique): Extract headers listed in Vary response headers, excluding the obvious ones ( Accept-Encoding , User-Agent , etc.). Headers in Vary are explicitly used for cache keying. If an attacker can control them, they might poison the cache for a specific Vary partition. This yielded 1,875 headers. -- Pseudocode: extract Vary-listed headers, excluding
+ -- the obvious ones (Accept-Encoding, User-Agent, etc.)
+ -- Split comma-separated Vary values, count by site frequency
+ SELECT header_name, occurrences, sites 
+ FROM parsed_vary_headers 
+ WHERE header_name NOT IN ([standard_headers]) 
+ ORDER BY sites DESC 
+ The wordlist_builder (427 lines) then merges these BigQuery results with 145 CDN-internal headers (documented but rarely tested) and 39 IANA-registered headers. Deduplication, filtering, and frequency-based prioritisation produce two output wordlists: headers-fast.txt (379 entries): High-probability headers for quick scans headers-all.txt (10,244 entries): The full corpus for exhaustive scans # 
+Stage 2: Fingerprinting — cache_probe (729 lines) + cdn_fingerprint (513 lines) Before testing anything, I need to know what I’m testing against. The fingerprinting system identifies three infrastructure layers from response headers alone: CDN layer : Cloudflare, CloudFront, Akamai, Fastly, Azure Front Door, Google Cloud CDN, Imperva, Vercel, Netlify — detected via header signatures like CF-Cache-Status , X-Amz-CF-Id , X-Served-By: cache-* , etc. Each match has a confidence score (0.0 to 1.0), and multiple matching headers boost confidence via Bayesian accumulation. # cdn_fingerprint.py — signature matching with confidence accumulation 
+ CDN_SIGNATURES = [
+ # (header_name, value_pattern, cdn_name, confidence) 
+ ( "cf-cache-status" , None , "cloudflare" , 0.95 ), # header presence alone 
+ ( "cf-ray" , None , "cloudflare" , 0.95 ),
+ ( "x-amz-cf-id" , None , "cloudfront" , 0.95 ),
+ ( "x-cache" , "from cloudfront" , "cloudfront" , 0.95 ), # value substring match 
+ ( "x-served-by" , "cache-" , "fastly" , 0.90 ),
+ ( "x-akamai-transformed" , None , "akamai" , 0.95 ),
+ ( "x-vercel-cache" , None , "vercel" , 0.95 ),
+ # ... 30+ signatures total 
+ ]
+ # Multiple matching headers boost confidence: 
+ existing . confidence = min( 0.99 , existing . confidence + ( 1 - existing . confidence) * 0.3 )
+ Proxy layer : Varnish, Nginx, Apache, HAProxy, Envoy, Traefik, Caddy, OpenResty, OpenLiteSpeed — detected via Server , Via , X-Varnish , X-Proxy-Cache headers. Framework layer : Express, Next.js, Nuxt, PHP, ASP.NET, Django, Flask, Rails, Laravel, Drupal, WordPress — detected via X-Powered-By , framework-specific cache headers, and version extraction where possible. Multi-layer detection matters because many production stacks have three or more layers: CDN in front of a reverse proxy in front of a framework with its own cache. Each layer is a potential mismatch point. Once the infrastructure is identified, cache_probe empirically reverses the cache key by testing each URL component: Baseline: GET /api/user/profile?a=1 → note response hash + X-Cache
+Test what's IN the key (change one thing, check if cache MISS):
+ 1. Change scheme (http vs https) → MISS? scheme is keyed
+ 2. Change host casing (Host: SITE.COM) → MISS? case-sensitive host
+ 3. Change path casing (/API/User) → MISS? case-sensitive path
+ 4. Reorder query params (?b=2&a=1) → MISS? param order matters
+ 5. Add port (:443) → MISS? port is keyed
+ 6. URL-encode a path char (%2F) → MISS? encoding preserved in key
+ This produces a ground-truth cache key specification: {
+ "scheme" : true ,
+ "host" : true ,
+ "host_case_sensitive" : false ,
+ "path" : true ,
+ "path_case_sensitive" : true ,
+ "path_normalized" : false ,
+ "query_string" : true ,
+ "query_sorted" : true ,
+ "port" : false ,
+ "headers_keyed" : [ "accept-encoding" ],
+ "fragment_stripped" : true 
+ }
+ Not an assumption from CDN documentation. Documentation describes defaults; real configurations diverge. I found this repeatedly during development. # 
+Stage 3: Detection — cache_timing (465 lines) Some caches are invisible. No X-Cache header, no Age , no CF-Cache-Status . Golinelli and Crispo found 5.8% of major websites have these hidden caches. cache_timing implements their paired-request timing algorithm over HTTP/2 multiplexing. It sends batches of paired requests — one “randomised” pair (both cache-busted, establishing a noise baseline) and one “fixed” pair (one busted, one reusing a cachebuster, potentially served from cache). After collecting enough samples, a Welch’s t-test determines whether the timing difference is statistically significant. This is the kind of capability that separates a scanner from a toy. If you can’t detect a cache, you can’t test it. # 
+Stage 4: Cache Poisoning — cache_poison (3,649 lines) This is the largest and most complex tool in the toolkit — and the one that’s grown the most since the initial release. It finds unkeyed inputs that influence cached responses, verifies that the poisoned response actually gets served from cache, and classifies the exploit type. Across 24 distinct test methods, it covers headers, cookies, query parameters, URL path manipulation, body parameters, HTTP/2 pseudo-headers, framework-specific caches, OAuth endpoints, cache invalidation methods, and cross-input WAF bypass techniques. CDN-Aware Header Filtering Before testing a single header, the scanner checks which CDN is in play and removes headers known to be keyed by default: CDN_KEYED_HEADERS = {
+ "cloudflare" : {
+ "x-forwarded-host" , "x-host" , "x-original-url" , "x-rewrite-url" ,
+ "x-forwarded-scheme" , "forwarded" , "origin" ,
+ "x-http-method-override" , "x-method-override" ,
+ },
+ "cloudfront" : set(), # CloudFront keys on everything in the cache policy 
+ "akamai" : set(), # Highly configurable — I use the oracle instead 
+ "fastly" : set(), # VCL-based — no universal defaults to skip 
+ }
+ On Cloudflare, skipping these default-keyed headers saves about 15 wasted requests. On Akamai, I go further — Pragma debug headers reveal the actual cache key, turning reversal from guesswork into an oracle: AKAMAI_DEBUG_HEADERS = {
+ "Pragma" : "akamai-x-cache-on, akamai-x-get-true-cache-key, akamai-x-check-cacheable" ,
+ }
+ # Response reveals: X-True-Cache-Key: /L/1234/567890/1d/target.com/path cid=___ 
+ # Parse this → know EXACTLY what's in the cache key → only test what's NOT listed. 
+ Headers are then reordered: CDN-priority headers first, content negotiation headers next, method override headers, then everything else. An adaptive system learns from early results — if the first reflected header lands in a <link href=...> tag, host-like headers get promoted in the queue. Multi-Signal Response Diffing Rather than checking a single signal — whether a canary string appears in the response body — I check five: Body reflection — canary in response body, classified by HTML context (script tag, attribute URL, link tag, meta tag, image tag, form tag, inline style, generic HTML). Header reflection — canary in Location , Set-Cookie , Link , Content-Location , X-Redirect-URL , Refresh , or Content-Type response headers. Status code change — the header causes a different HTTP status (301, 302, 400, 500, etc.). Body size delta — the response grows or shrinks by more than 5% (content added or removed). New response headers — headers appear in the test response that weren’t in the baseline (debug mode activated, different backend path). Additionally, I monitor changes to security-relevant headers: Content-Security-Policy , X-Frame-Options , Strict-Transport-Security , Cross-Origin-Resource-Policy , and others. If an unkeyed header weakens a cached security header, that’s a critical finding even without any body reflection. Any of these signals means the header influences the response. def _diff_responses (baseline, test, canary) -> ResponseDiff:
+ """Multi-signal comparison between baseline and test response.""" 
+ # Signal 1: Body reflection (canary substring match) 
+ if canary in test_body:
+ context = _classify_body_context(test_body, idx, canary) # script_tag, attribute_url, etc. 
+ body_reflections . append({ "context" : context, "snippet" : snippet})
+ # Signal 2: Header reflection (Location, Set-Cookie, Link, etc.) 
+ for hdr in [ "location" , "set-cookie" , "link" , "content-location" ]:
+ if canary in test . headers . get(hdr, "" ):
+ header_reflections . append({ "header" : hdr, "snippet" : val})
+ # Signal 3: Status code change 
+ status_changed = baseline . status != test . status
+ # Signal 4: Body size delta (>5% threshold) 
+ size_delta_pct = abs(size_delta) / baseline . body_length * 100 
+ # Signal 5: New response headers (debug mode, different backend) 
+ new_headers = sorted(test_header_keys - baseline_header_keys)
+ # Bonus: Security header changes (CSP, XFO, HSTS, CORP, COOP) 
+ for sec_hdr in SECURITY_HEADERS:
+ if baseline . headers . get(sec_hdr) != test . headers . get(sec_hdr):
+ sec_changes[sec_hdr] = (before, after)
+ Binary Search for Scalability Testing 10,244 headers sequentially would require 10,244 requests — slow and loud. Instead, I batch headers into groups of 20, send all 20 in a single request with a shared canary, and diff against the baseline. If the group shows no signal, I skip all 20 headers in one request. If it shows a signal, I binary search within the group (log2(20) ~ 5 requests) to isolate which header(s) caused it. Each group gets its own cachebuster to prevent cross-group cache pollution. If a group test returns 431 (Request Header Fields Too Large) — because 20 extra headers exceeded the server’s limit — the scanner automatically splits into smaller sub-groups and retries. A subtlety: binary search can miss AND-gated behaviours where header A only influences the response when header B is also present. When neither half alone differs but the full group did, I run pairwise interaction testing on the top candidates from each half. This catches the “multiple headers needed together” scenarios. Performance : 10,244 headers → ~512 groups + ~50 binary searches ~ ~560 requests. The fast wordlist (379 headers) takes about 25 requests for the group phase. A limitation: the binary search runs to full isolation even when it’s clear a group has only one influencing header. Early stopping after the first negative half-split — when one half shows zero signal — would halve the remaining search depth. This is a planned optimisation that would reduce the ~50 binary searches to ~35 on average. Cache Key Oracle For every header that influences the response, I need to determine whether it’s in the cache key. This is the difference between “interesting” and “exploitable.” The test: # Step 1: Prime cache WITH the header + unique cachebuster + pinned UA 
+ oracle_cb = f "cb=oracle_ { random . randint( 100000 , 999999 ) } " 
+ oracle_url = f " { url } ? { oracle_cb } " 
+ pinned_ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ..." 
+ await client . get(oracle_url, headers = {header: canary, "User-Agent" : pinned_ua})
+ # Step 2: Request WITHOUT the header, SAME cachebuster + SAME UA 
+ await asyncio . sleep( 0.3 ) # allow cache propagation 
+ verify = await client . get(oracle_url, headers = { "User-Agent" : pinned_ua})
+ # Step 3: Check if canary persists without the header 
+ verify_body = verify . body_preview . decode( "utf-8" , errors = "ignore" )
+ if canary in verify_body:
+ # Header is NOT in cache key → CONFIRMED cache poisoning 
+ confidence = "CONFIRMED" 
+ If the canary persists without the header being sent, the header is NOT in the cache key. This is confirmed cache poisoning. A critical detail: the User-Agent must be pinned to the same value for both the prime and verify requests. Many CDNs include Vary: User-Agent in their responses, which partitions the cache by User-Agent. If the scanner rotates User-Agents between requests (as my HTTP client does for fingerprint diversity), the prime and verify hit different cache partitions and the oracle always reports “not cached” — a false negative. This bit me during early testing and is now fixed across all oracle call sites: main oracle, cookie oracle, interaction oracle, and parameter cloaking oracle. Exploit Auto-Classification When a reflected unkeyed header is confirmed, I classify where the canary landed: In a <script> tag or src / href attribute → XSS (inject JavaScript via the poisoned CDN response) In a Location: header → Open redirect (all users redirected to attacker’s domain) In a Set-Cookie: header → Session fixation (inject cookies via cache) In a <meta> tag → CSP bypass potential Causes a 4xx/5xx that gets cached → CP-DoS (cache serves errors to everyone) Security headers weakened → Security header poisoning (CSP removed, XFO removed) Response content changes without reflection → Behaviour poisoning Beyond Basic Headers The scanner also tests: Unkeyed cookies : Extract cookie names from Set-Cookie response headers, then test each as an unkeyed cache input. For every cookie, inject a canary value with a cachebuster, then run the standard cache key oracle. This catches an entire class of cache poisoning that header-only scanners miss — server-set cookies that influence the response but aren’t part of the cache key. Unkeyed query string detection : A two-phase test that runs before any header testing. Phase A sends two requests with different query strings — if the second returns a cache HIT with an identical body hash, the entire query string is unkeyed. Phase B confirms by poisoning a canary into the cache via query parameter, then checking if the bare URL serves it. When the query string is unkeyed, the scanner warns that query-parameter-based cache busters are ineffective and switches to header-based busting. Parameter cloaking : Exploits parser differentials where the cache treats a semicolon ( ; ) as part of a parameter value, but the backend treats it as a parameter delimiter. For each unkeyed parameter found, the scanner tests unkeyed=x;target=canary against all existing URL parameters plus high-value targets (JSONP callbacks, redirect parameters, template names). A successful cloak means an attacker can override keyed parameters through an unkeyed one — the cache sees one parameter, the origin sees two. # Parameter cloaking: semicolon delimiter differential 
+ # Cache sees: utm_content=x;callback=alert(1) ← single param value 
+ # Origin sees: utm_content=x AND callback=alert(1) ← two separate params 
+ cloak_value = f "x; { target } = { canary } " 
+ cloak_url = f " { url } & { unkeyed } = { cloak_value } & { cachebuster } " 
+ URL path normalization detection : A 2-request test that detects when a cache decodes percent-encoded bytes before computing the cache key, but the origin does not. First, send a request to a nonexistent path and check if the path is reflected in the 404 body. Then send the same path with one character percent-encoded (e.g., c → %63 ) and check if the cache returns a HIT. If it does, the cache normalizes encoding before keying — meaning /<script> and /%3cscript%3e share a cache key. This enables XSS via cache poisoning: the attacker sends the literal <script> tag (which gets cached), victims visit the innocuous-looking encoded URL, and the cache serves the poisoned XSS response. # Path normalization: cache decodes %XX before keying 
+ # Attacker sends: GET /<script>alert(1)</script> → cache stores XSS 
+ # Victim visits: GET /%3cscript%3ealert(1)%3c/script%3e → cache serves XSS 
+ # Same cache key because cache normalizes percent-encoding 
+ AND-gate header interactions : When a header causes a same-host redirect (e.g., x-forwarded-scheme: http → 301 redirect to HTTPS), the scanner automatically tests it in combination with host-override headers. The goal: find multi-header combinations where one header triggers the redirect mechanism and a second header controls the destination. This catches scenarios like Cloudflare’s x-forwarded-scheme + x-forwarded-host combo, where neither header alone produces an exploitable response but together they create an open redirect via cache poisoning. Only ~8 extra requests per redirect finding. Content negotiation poisoning : Accept: application/json instead of text/html — if the JSON response gets cached as the HTML page, it’s a content-type confusion attack. Method override caching : X-HTTP-Method-Override: POST on a GET request — some frameworks process it as POST but the cache stores it as GET. Fat GET : Body parameters on GET requests that override query parameters, where the body is never part of the cache key. HTTP/2 Host confusion : :authority pseudo-header vs Host header mismatches where the CDN keys on one but the origin routes on the other. Unkeyed query parameters : CloudFront and some Akamai configurations forward query parameters to the origin without including them in the cache key. Normalization bypasses : For headers that ARE keyed, test case variants ( x-forwarded-host vs X-FORWARDED-HOST ), whitespace-prefixed values, and duplicate headers with case variants — exploiting the gap between how the CDN normalises the key and how the backend processes the value. Duplicate header bypass : Send two instances of a header, first clean (keyed), second malicious (processed by backend). New Attack Modules (Since Initial Release) The following modules were added to address attack surfaces I identified after operational testing: Fragment forwarding (CVE-2021-27577): Tests whether %23 (percent-encoded # ) is forwarded to the origin but stripped from the cache key. Apache Traffic Server had this vulnerability — it decoded %23 to # server-side, forwarded the fragment to the origin, but excluded everything after # from the cache key. If a canary injected after %23 reflects in the response body, it’s an unkeyed input. Combined with XSS payloads, an attacker can poison the cache via GET /page%23<script>alert(1)</script> and victims visiting /page receive the poisoned response. Cache invalidation method testing : Tests whether unauthenticated PURGE , BAN , REFRESH , INVALIDATE , or FASTLYPURGE HTTP methods are accepted. If any method returns 200 or 204 without authentication, an attacker can flush the cache at will — turning any single-use cache poisoning finding into persistent exploitation by re-poisoning after each flush. Next.js ISR/SSG framework cache : Gated by the fingerprinting module (only runs when primary_framework == "nextjs" ). Tests CVE-2024-46982 (zhero’s disclosure): the X-Middleware-Prefetch: 1 header causes Next.js ISR to cache the JSON/RSC payload instead of HTML. Also tests RSC: 1 for React Server Component request manipulation and Next-Router-State-Tree for layout poisoning. These are framework-level cache poisoning vectors that operate independently of the CDN cache layer. Import hijacking escalation : When the scanner finds a confirmed cached redirect (via an unkeyed header like X-Forwarded-Host ), it automatically escalates by testing JS and CSS import URLs. It parses <script src> and <link rel=stylesheet href> tags from the baseline response, then tests each import URL with the same redirect-causing header. If an import URL is also redirectable via the same unkeyed header, the attacker controls where the browser loads scripts from — stored XSS on every page that includes the import. This is Kettle’s 2018 import hijacking technique, automated. Illegal header name injection : An Akamai-specific module that bypasses httpx entirely, using raw TCP sockets to send headers with illegal characters in the name (not just the value). Characters like SOH ( \x01 ), space, colon, tab, and DEL in header names cause the origin to return 400 Bad Request, and Akamai caches the error. This required dropping to socket.create_connection() + ssl.wrap_socket() because httpx (and h11) validates header names at the transport layer — the very restriction that makes this attack interesting, since it means most automated scanners can’t even attempt it. # Raw socket bypass for illegal header name characters 
+ header_name = f "X-Illegal { char } Test" 
+ raw_request = (
+ f "GET { path_qs } HTTP/1.1 \r\n " 
+ f "Host: { host } \r\n " 
+ f " { header_name } : test \r\n " 
+ f "Connection: close \r\n\r\n " 
+ ) . encode( "latin-1" , errors = "replace" )
+ sock . sendall(raw_request)
+ Payload splitting (cross-input WAF bypass): When the scanner finds both a reflected unkeyed header AND a reflected unkeyed cookie, it tests splitting a canary across them — header gets the first half, cookie gets the second half. If both halves appear adjacent in the response, the WAF inspects each input individually (seeing neither as malicious), but the combined reflection in the cached response reconstructs the full payload. This is the technique nokline used against Glassdoor: split <script> as header <scr + cookie ipt>alert(1)</script> . Surrogate-Key/Control injection : Gated by CDN detection (only runs on Fastly, Cloudflare, or Varnish). Tests whether Surrogate-Key , Surrogate-Control , or CDN-Cache-Control headers are processed from the client request. Surrogate-Key injection controls purge groups — an attacker can tag cached responses and selectively invalidate them. Surrogate-Control: max-age=31536000 extends TTL from minutes to a year, making any cache poisoning finding persist far longer than the natural TTL. CDN-Cache-Control: max-age=31536000, public is the Cloudflare variant. OAuth/OIDC endpoint poisoning : Probes 10 standard OAuth endpoints ( .well-known/openid-configuration , .well-known/oauth-authorization-server , /oauth/authorize , /oauth/token , /oauth/callback , etc.) and tests whether host-override headers ( X-Forwarded-Host , X-Forwarded-Prefix , X-Original-URL ) influence their responses. This implements the Herish Part 3 / PayPal $30,750 technique: poisoning .well-known/openid-configuration to redirect authorization_endpoint and token_endpoint to an attacker server, hijacking all OAuth flows that rely on the discovery document. Multi-CDN layer mismatch testing : When the fingerprinting module detects multiple CDN or proxy layers (e.g., Cloudflare in front of Varnish), tests whether headers that pass through the outer CDN layer can poison the inner cache. A header keyed by the outer CDN (accepted, forwarded) but unkeyed by the inner cache (influences response, not part of key) produces an exploitable mismatch. Tests 6 commonly-different headers ( X-Forwarded-Host , X-Forwarded-Proto , X-Forwarded-Port , X-Forwarded-Prefix , X-Original-URL , X-Rewrite-URL ). Authentication Support All tools now accept --cookie and --header flags for testing authenticated attack surfaces. Many cache poisoning vulnerabilities only manifest on authenticated pages — where the response contains user-specific data that shouldn’t be cached. Without authentication support, the scanner could only test public pages, missing the highest-impact findings. python cache_poison.py https://example.com/dashboard \
+ --cookie "session=abc123" \
+ --header "Authorization: Bearer eyJ..." 
+ Multi-Profile and Vary-Based Scope For confirmed poisoning findings, I determine the blast radius. If the target’s Vary header includes the poisoned header, the poisoning is “targeted” — only users sending that specific header value get the poisoned response. Otherwise, it’s “global” — every user gets poisoned. I also test cache partitioning by device type (desktop, mobile, Googlebot User-Agent) to determine whether a desktop-targeted poison affects mobile users or vice versa. Internal and Application-Level Cache Support Not all caches announce themselves. CDN-fronted caches have X-Cache , CF-Cache-Status , or Age headers. But application-level caches — Rails fragment caching, Django template fragment caching, custom in-memory stores — have no external indicators. No cache headers, no Age , no status fields. The RAID 2024 paper found 5.8% of major websites have these hidden caches. The scanner handles this at three levels: First, target URL preference . When the scanner finds an external cache on a static file (like /favicon.ico ) but the user specified the homepage, it tests headers against both URLs. Many internal caches only affect dynamic pages — testing against a static asset would miss every finding. The scanner always prioritizes the user-provided URL for header influence testing: if found_url != target:
+ # External cache confirmed on static file, but test headers against target 
+ result . cached_url = target
+ Second, fallback when no external cache is detected . If find_cacheable_url can’t confirm any external cache via headers, it still returns the target URL instead of giving up. This ensures internal/application-level caches get tested even when they’re invisible. Third, multi-request oracle priming . When the standard single-request oracle fails (header is reflected but canary doesn’t persist from one request to the next) and no CDN is detected, the scanner enters an internal cache priming mode: it sends 20 consecutive requests with the poisoned header, waits for propagation, then verifies. Application-level caches often require multiple writes before a fragment cache entry gets overwritten: if not canary_persisted and diff . is_reflected and not self . cdn_name:
+ # Internal cache? Try sustained priming 
+ for _ in range( 20 ):
+ await self . client . get(oracle_url, headers = prime_headers)
+ await asyncio . sleep( 0.5 )
+ verify = await self . client . get(oracle_url) # no poison header 
+ canary_persisted = canary in verify . body
+ This 20-request priming adds ~10 requests per reflected header without a CDN, but it catches an entire class of vulnerabilities that external-cache-only scanners miss entirely. # 
+Set-Cookie Cacheability Gate A subtle cache behaviour affects many real-world targets: CDNs and reverse proxies often refuse to cache responses that contain Set-Cookie headers. This means first-visit responses (which set session cookies) are never cached, while subsequent requests from cookied users are cacheable. The scanner handles this naturally through httpx’s built-in cookie persistence. Within a scan session, httpx’s AsyncClient automatically stores cookies from Set-Cookie responses and replays them on subsequent requests — exactly mirroring how a real browser behaves. The first request to a target gets the Set-Cookie + no-cache response. The second request carries the session cookie, the server omits Set-Cookie , the CDN sees a cacheable response, and the scanner detects the cache correctly. This is not a feature I had to build — it’s a consequence of using httpx correctly. But it’s worth noting because it explains why manual testing with curl (which doesn’t persist cookies between invocations) produces different results than the scanner: curl always looks like a first-time visitor, so the page always appears uncacheable. CP-DoS: Three Attack Classes Cache Poisoned Denial of Service is the simplest form of cache poisoning — instead of injecting useful content, you inject an error. If the error response gets cached, every subsequent user gets served the error instead of the real page. My initial implementation had 9 payloads, all in the “oversized/conflicting” category that Nguyen-Phuc et al. described in 2019 and Youstin found extensively in the wild. After studying HCache’s systematic taxonomy (CCS 2024) and continuing to expand the attack surface, I now have 56 payloads across four classified attack types, each with its own detection method: Class 1: Traditional CP-DoS ( attack_class: "cpdos" ) — 35 payloads The original approach: send headers that cause the origin to return error status codes. This splits into two sub-categories: Oversized/conflicting payloads — the ones everybody knows: ( "x-oversized-header" , "A" * 8192 , "Oversized header → 431" ),
+ ( "transfer-encoding" , "chunked, identity" , "Conflicting TE → 400/502" ),
+ ( "content-length" , "99999" , "Bogus CL on GET → 400" ),
+ ( "accept-encoding" , "gzip" + ", " * 2000 + "gzip" , "Encoding list bomb → 400" ),
+ These work because the origin (or an intermediate proxy) rejects the malformed request with a 4xx/5xx, and the CDN caches the error response. They’re loud — WAFs catch the oversized ones easily — but they still work on a surprising number of targets because many CDNs process and cache the error before the WAF layer evaluates the request content. RFC-compliant malformed values — the HCache additions that nobody tests: # Conditional headers with syntactically valid but wrong values 
+ ( "if-match" , '"nonexistent-etag-value"' , "HCache: non-matching ETag → 412" ),
+ ( "if-modified-since" , "Thu, 01 Jan 2099 00:00:00 GMT" , "HCache: future date → 304" ),
+ # Range headers with valid syntax, impossible semantics 
+ ( "range" , "bytes=cow" , "HCache: non-numeric range → 416" ),
+ ( "range" , "bytes=9-4" , "HCache: reversed range → 416" ),
+ # Protocol upgrade requests the server can't fulfil 
+ ( "upgrade" , "WebSocket" , "HCache: WebSocket without handshake → 426" ),
+ ( "upgrade" , "h2c" , "HCache: cleartext HTTP/2 upgrade → 426" ),
+ # Metacharacter injection — control bytes that h11 allows through 
+ ( "x-metachar-test" , "foo \x01 bar" , "meta-char: SOH control char in header" ),
+ ( "accept" , "text/html \x01 " , "meta-char: SOH in Accept header" ),
+ These are invisible to WAFs because the headers are legitimate and the values are syntactically valid. If-Modified-Since: Thu, 01 Jan 2099 00:00:00 GMT is a perfectly well-formed HTTP date — it’s just in the future, so a compliant origin responds with 304 Not Modified (empty body). The metacharacter payloads are even subtler: a SOH byte ( \x01 ) embedded in an Accept header value is invisible in logs but causes some origins to return 400 Bad Request. The detection logic treats both 4xx+ errors and 304 as CP-DoS signals: # Check if error status or 304 (cached 304 denies content) 
+ is_error = resp . status >= 400 
+ is_304 = resp . status == 304 
+ if not is_error and not is_304:
+ continue 
+ The 304 case is important. Previous CP-DoS scanners only watch for 4xx and 5xx status codes. But a cached 304 is arguably worse — the response has no body at all. Every user who hits the cached entry gets an empty page with a 304 status, which most browsers interpret as “nothing has changed” and show stale or blank content. And because If-Modified-Since is a standard conditional header that CDNs routinely pass through to the origin, many caching configurations don’t strip it. Class 2: WAF Poisoning ( attack_class: "waf_poison" ) — 16 payloads This is the most counterintuitive attack class. The WAF that’s supposed to protect the site becomes the denial vector: WAF_POISON_PAYLOADS = [
+ ( "user-agent" , "sqlmap/1.0" , "WAF: sqlmap UA → cached 403" ),
+ ( "user-agent" , "Nikto/2.1.6" , "WAF: Nikto UA → cached 403" ),
+ ( "user-agent" , "Nessus SOAP" , "WAF: Nessus UA → cached 403" ),
+ ( "user-agent" , "masscan/1.3" , "WAF: masscan UA → cached 403" ),
+ ( "referer" , "http://spam-domain.example.com" , "WAF: spam referer → cached 403" ),
+ ( "x-custom-header" , "<script>alert(1)</script>" , "WAF: XSS pattern → cached 403" ),
+ ( "x-custom-header" , "' OR 1=1 --" , "WAF: SQLi pattern → cached 403" ),
+ ( "x-custom-header" , "../../../etc/passwd" , "WAF: traversal pattern → cached 403" ),
+ ( "user-agent" , "ffuf/v2.0.0" , "WAF: ffuf UA → cached 403" ),
+ ( "user-agent" , "nuclei/v3.0.0" , "WAF: nuclei UA → cached 403" ),
+ # ... 16 payloads total (WPScan, gobuster, DirBuster, Burp Suite, curl, python-requests) 
+ ]
+ The mechanism: the attacker sends a request with a tool-signature User-Agent or a header value containing an attack pattern. The WAF intercepts the request before it reaches the origin and returns a 403 Forbidden block page. If the CDN caches that 403 response — and many do, because from the CDN’s perspective it’s a valid HTTP response from an upstream server — then every subsequent user gets the block page. The irony is acute: the site operator deployed a WAF to prevent attacks, and the WAF’s own block responses become the attack vector. HCache found this pattern on sites protected by Cloudflare, Akamai, and Imperva — the three largest WAF providers. The detection method differs from traditional CP-DoS. Instead of watching for any 4xx+, WAF poisoning looks specifically for WAF-characteristic status codes: 403 (Forbidden — the standard WAF block), 406 (Not Acceptable — some WAFs use this), 418 (I’m a Teapot — used by some custom WAF rules as a signature), and 451 (Unavailable for Legal Reasons — geo-blocking WAFs). waf_statuses = { 403 , 406 , 418 , 451 }
+ if resp . status not in waf_statuses:
+ continue 
+ The scanner tests each payload with a unique cachebuster, checks if the WAF block status was returned, then verifies whether the block response was cached by sending a clean request to the same cache-busted URL and checking for a cache HIT. Class 3: Metacharacter Injection ( attack_class: "meta_char" ) — classified within Class 1 Metacharacter payloads are technically part of the CPDOS_PAYLOADS list but classified separately in findings output. They use control bytes that pass through Python’s h11 HTTP parser but cause errors at the origin. The specific bytes chosen — \x01 (SOH), \x08 (BS), \x1b (ESC), \x7f (DEL) — are the survivors after h11’s transport-layer rejection of \x00 , \x0A , \x0B , \x0C , \x0D . These are tested in both custom headers ( x-metachar-test ) and standard headers ( accept , accept-encoding , content-type ) because origin servers may validate standard headers differently from unknown ones. Class 4: Illegal Header Name Injection ( attack_class: "illegal_header_name" ) — 5 payloads This class targets a transport-layer blind spot. While metacharacter injection (Class 3) puts control bytes in header values , illegal header name injection puts them in header names — X-Illegal\x01Test , X-Illegal Test (space), X-Illegal:Test (colon), X-Illegal\tTest (tab), X-Illegal\x7fTest (DEL). These are specifically effective against Akamai, which forwards headers with illegal name characters to the origin. The origin returns 400 Bad Request, Akamai caches the error. The implementation is notable because it’s the only module that drops below the httpx abstraction layer. httpx (via h11) validates header names at the transport layer and rejects names with control characters or spaces. The scanner uses raw TCP sockets with optional TLS wrapping to bypass this validation — constructing the HTTP request as a byte string and sending it directly. This makes the attack impossible to test with standard HTTP libraries, which is partly why it’s been underexplored. Request Budget The full CP-DoS + WAF poisoning suite adds 102 requests in the worst case (51 payloads × 2 each for test + verify, plus the 5 illegal header name payloads which use raw sockets). In practice, most payloads won’t trigger error responses on any given target, so the verify phase is skipped — the real cost is closer to 55-65 requests. At 10 requests/second, that’s about 6-7 seconds of additional scan time. Output Classification All CP-DoS findings now include an attack_class field and the scan statistics break down findings by class: {
+ "cpdos_findings" : [
+ {
+ "header_name" : "if-modified-since" ,
+ "header_value" : "Thu, 01 Jan 2099 00:00:00 GMT" ,
+ "error_status" : 304 ,
+ "cached" : true ,
+ "error_body_preview" : "" ,
+ "attack_class" : "cpdos" 
+ },
+ {
+ "header_name" : "user-agent" ,
+ "header_value" : "sqlmap/1.0" ,
+ "error_status" : 403 ,
+ "cached" : true ,
+ "error_body_preview" : "<!DOCTYPE html><html><head><title>Access Denied..." ,
+ "attack_class" : "waf_poison" 
+ }
+ ],
+ "scan_stats" : {
+ "cpdos_count" : 5 ,
+ "cpdos_by_class" : {
+ "cpdos" : 3 ,
+ "waf_poison" : 1 ,
+ "meta_char" : 1 
+ }
+ }
+ }
+ This classification matters for triage. A waf_poison finding on a Cloudflare-protected site is a different conversation with the security team than a cpdos finding from an oversized header — the former implies a WAF configuration issue (the WAF should either not cache block responses, or the CDN should not cache 403s), while the latter implies the origin server needs to handle malformed input more gracefully. # 
+Stage 5: Cache Deception — cache_diff (1,658 lines) While cache poisoning is about injecting content, cache deception is about stealing content. The attacker crafts a URL that the origin serves as the victim’s private page but the CDN caches as a static resource. cache_diff performs byte-level differential fuzzing. For each of 256 byte values (0x00 through 0xFF), at three path positions (after path, mid-path, before extension), at three encoding levels (raw, single-encoded, double-encoded), it tests how the origin and CDN handle the byte differently. The algorithm: For each byte B in 0x00-0xFF:
+ For each position P in [after_path, mid_path, before_extension]:
+ For each encoding E in [raw, single_encode, double_encode]:
+ # Step 1: Ask origin directly (POST bypasses cache)
+ POST /profile{B}test HTTP/1.1
+ → Compare to POST /profile baseline
+ → Same response? → Origin treats B as DELIMITER (strips everything after)
+ # Step 2: Ask CDN (GET, check caching behaviour)
+ GET /profile{B}test.css?cachebuster HTTP/1.1
+ → Record X-Cache status
+ → Does CDN cache it? As what key?
+ # Step 3: Compare
+ IF origin_delimiter AND NOT cdn_delimiter:
+ → CACHE DECEPTION: origin serves /profile, CDN caches as static file
+ IF cdn_delimiter AND NOT origin_delimiter:
+ → CACHE POISONING: CDN keys on /profile, origin processes full path
+ This is the technique that would have found the ChatGPT ATO, the Spring semicolon tricks, and the OpenLiteSpeed null byte truncation — all automatically. Attack Recipe Generation Raw mismatch data isn’t actionable. For every confirmed mismatch, cache_diff generates a structured AttackRecipe : a victim URL, an attacker read URL, a step-by-step exploitation narrative, prerequisites, and an impact classification. It also assesses authentication state by scanning the response body for indicators: AUTH_INDICATORS = [
+ b "logout" , b "sign out" , b "my account" , b "dashboard" , b "profile" ,
+ b "csrf" , b "_token" , b "authenticity_token" , b "__RequestVerificationToken" ,
+ b "data-user" , b "user-id" , b "userId" ,
+ ]
+ SENSITIVE_PATTERNS = [
+ re . compile( rb '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}' ), # email 
+ re . compile( rb '"email"\s*:\s*"[^"]+@' ), # JSON email field 
+ re . compile( rb '(?:api[_-]?key|token|secret)\s*[:=]\s*[" \' ]?[a-zA-Z0-9]{16,}' ), # API keys 
+ ]
+ def _assess_auth_state (body_preview: bytes) -> tuple[str, list[str]]:
+ # 3+ indicators → "likely_sensitive" 
+ # 1-2 indicators → "unknown" 
+ # 0 indicators → "likely_static" 
+ Findings are scored as “likely sensitive,” “likely static,” or “unknown.” A cache deception finding on a page that only serves public content is far less interesting than one on a page with CSRF tokens and email addresses. For confirmed mismatches, the output is a structured attack recipe: {
+ "attack_type" : "cache_deception" ,
+ "victim_url" : "https://target.com/my-account%23wcd.css" ,
+ "attacker_read_url" : "https://target.com/my-account%23wcd.css" ,
+ "mechanism" : "Encoded # (0x23) acts as fragment delimiter on origin (serves /my-account), CDN sees .css extension and caches" ,
+ "prerequisites" : [
+ "Victim must be authenticated when visiting victim_url" ,
+ "CDN must cache the response (verify cache TTL is sufficient)" 
+ ],
+ "steps" : [
+ "1. Craft victim_url with delimiter + static extension" ,
+ "2. Send URL to authenticated victim (phishing, stored XSS, link injection)" ,
+ "3. Victim's browser requests URL → origin serves their /my-account page" ,
+ "4. CDN caches the response (contains victim's personalized data)" ,
+ "5. Attacker requests attacker_read_url → receives victim's cached page" 
+ ],
+ "impact" : "pii_leak" ,
+ "leak_confidence" : "likely_sensitive" ,
+ "auth_indicators_found" : [ "logout" , "csrf" , "email pattern" ]
+ }
+ Framework-Aware Delimiter Priority Instead of testing all 256 bytes blindly, cache_diff uses the infrastructure fingerprint from cache_probe to test framework-specific delimiters first: FRAMEWORK_DELIMITERS = {
+ "spring" : [{ "byte" : 0x3B , "name" : ";" , "behavior" : "Matrix variable delimiter" }],
+ "rails" : [{ "byte" : 0x2E , "name" : "." , "behavior" : "Format suffix (.json, .xml)" }],
+ "openlitespeed" : [{ "byte" : 0x00 , "name" : "%00" , "behavior" : "Null byte truncation" }],
+ "nginx" : [{ "byte" : 0x0A , "name" : "%0A" , "behavior" : "Newline in rewrite rules" }],
+ "php" : [{ "byte" : 0x3F , "name" : "?" , "behavior" : "PATH_INFO tricks" }],
+ "django" : [{ "byte" : 0x2F , "name" : "/" , "behavior" : "APPEND_SLASH redirect" }],
+ "aspnet" : [{ "byte" : 0x2F , "name" : " %2F " , "behavior" : "Treated as / (decoded)" }],
+ }
+ def _build_byte_list (self, fp):
+ """Build ordered byte list: framework-specific first, then tier 1, then all.""" 
+ # Priority: framework delimiters → known delimiters → printable specials → everything 
+ if fp and fp . priority_delimiters:
+ for d in fp . priority_delimiters:
+ ordered . append(d[ "byte" ])
+ for b in TIER1_BYTES: # 14 known delimiters (;, #, ?, %, etc.) 
+ ordered . append(b)
+ for b in TIER2_BYTES: # printable specials 
+ ordered . append(b)
+ # TIER3: full 0x00-0xFF sweep (only in --full mode) 
+ This means the most likely finding appears in the first few requests rather than the last. # 
+Stage 2½: Endpoint Discovery — discover (634 lines) Before the initial release, I scanned a single URL per domain — usually the homepage or a known cached static file. This missed vulnerabilities that only manifest on specific endpoints. discover solves this by finding all cached endpoints before scanning. Discovery pulls URLs from four sources: Static wordlist ( data/cacheable-paths.txt , 40 paths) — common cacheable paths like /robots.txt , /favicon.ico , /sitemap.xml , API endpoints Katana (live crawl) — headless browser-based crawling to find dynamic links the site actually serves Gau (archive data) — pulls historical URLs from Wayback Machine, Common Crawl, OTX AlienVault, and URLScan.io BigQuery HTTP Archive — queries the HTTP Archive dataset for known paths on the target domain The deduplication is structural, not string-based. /product/123 and /product/456 collapse into a single representative endpoint — the scanner tests the pattern , not every instance. This prevents scanning thousands of product pages when one representative covers the attack surface. Each discovered URL goes through a two-request cacheability oracle: prime the path, sleep, then verify whether a cache HIT occurs. Only confirmed-cached endpoints proceed to the diff and poison stages. The result is a DiscoveryResult with a cached_endpoints list that drives all downstream scanning. # 
+Stage 6: Weaponization — weaponize (1,004 lines) Raw scan output tells you “this delimiter causes a mismatch.” Weaponize turns that into a proven exploit chain with impact assessment and a ready-to-submit proof of concept. The four-phase pipeline: Phase A: Discover sensitive endpoints. Crawls the target for pages containing authentication indicators (CSRF tokens, session cookies, emails, API keys, __NEXT_DATA__ , __INITIAL_STATE__ ). These are the endpoints where cache deception has real impact — leaking session data, not just static HTML. Phase B: Verify delimiters per endpoint. Takes confirmed delimiters from cache_diff output and verifies each one still works against every sensitive endpoint. A delimiter that works on /profile may not work on /api/me — different backend routes can have different parsing behaviour. Phase C: Assess impact. For each working delimiter + endpoint combination, extracts and classifies what’s in the response: CSRF tokens → token_leak Session cookies in Set-Cookie → ato (account takeover) Email addresses / PII → pii_leak JSON with sensitive keys → content_leak __NEXT_DATA__ / __INITIAL_STATE__ → checks for embedded auth data Phase D: Generate PoC URLs. Produces ready-to-use proof-of-concept URLs with the delimiter and a static extension that triggers caching. Each PoC includes the victim URL, the attacker read URL, exploitation steps, and an exploitability score (auth indicators +3, sensitive data +3, cached +2, JSON +1). Weaponize can ingest cache_diff JSON output directly, so the full chain is: cache_diff finds mismatches → weaponize turns them into scored, verified exploits. # 
+Orchestration — batch_scan (664 lines) The batch scanner ties everything together for multi-URL campaigns. The pipeline is now: probe → discover → per-endpoint (diff + poison) → weaponize . The key architectural change: discovery runs early (step 2), and diff/poison scan each confirmed-cached endpoint individually instead of a single default URL. This catches endpoint-specific vulnerabilities that a homepage-only scan would miss. Additional capabilities since the initial release: --discover-only mode for pure reconnaissance — map cached endpoints without scanning --tranco N for testing against the Tranco Top-N domains (downloads and parses the list automatically) --use-katana / --use-gau flags to control discovery sources Weaponization integration — when --weaponize is passed, confirmed findings are automatically sent through the weaponize pipeline Usage: # Individual tools 
+ python cache_probe.py https://example.com # Fingerprint + cache key 
+ python cache_timing.py https://example.com --wcd --pairs 15 # Hidden cache detection 
+ python discover.py https://example.com --use-gau --use-katana # Find cached endpoints 
+ python cache_diff.py https://example.com/profile # Byte-level WCD fuzzing 
+ python cache_poison.py https://example.com # Fast: headers + cookies + path norm 
+ python cache_poison.py https://example.com --mode full # Full 10K header scan 
+ python weaponize.py https://example.com --diff-json diff.json # PoC generation 
+ # Batch scanning 
+ python batch_scan.py urls.txt --output-dir results # Full pipeline 
+ python batch_scan.py urls.txt --discover-only # Recon only 
+ python batch_scan.py urls.txt --weaponize # With PoC generation 
+ python batch_scan.py --tranco 100 --output-dir /tmp/tranco/ # Tranco Top-100 
+ It handles CDN-aware rate limiting, per-domain JSON output, per-endpoint results, aggregate statistics, and parallelisation across targets. # 
+Bug Bounty Scanner — bounty_cache_scan (1,213 lines) A mass scanner purpose-built for bug bounty. Five-phase pipeline: Acquire — downloads in-scope domains from all major platforms: HackerOne, Bugcrowd, Intigriti, YesWeHack, Federacy (via the bounty-targets-data GitHub repo) Resolve — runs subfinder on wildcard domains to resolve actual subdomains Probe — uses httpx to filter for alive hosts showing cache indicators (X-Cache, CF-Cache-Status, Age, Via, etc.) Scan — feeds cache-positive domains through batch_scan with the full pipeline Report — aggregates findings by program, platform, and bounty eligibility Supports --resume-from for picking up interrupted scans, --skip-resolve for faster runs without wildcard resolution, and --httpx-rate for controlling probe throughput. # 
+Dashboard — dashboard (892 lines) A web UI for the toolkit, built with Flask + htmx + Server-Sent Events. Runs at http://localhost:3003/ and provides: Tool registry mapping the five pipeline stages (probe, discover, diff, poison, weaponize) Real-time SSE progress streaming during scans Dark theme consistent with the CLI output Point-and-click interface for running individual tools or the full pipeline # 
+Cache Discovery Script — find_cacheable.sh (241 lines) A lightweight Bash alternative to discover.py for quick cache reconnaissance. Uses curl instead of Python, testing 15 default paths (/, /robots.txt, /favicon.ico, etc.) with a two-request prime-verify pattern. Supports single domain or batch mode from file, with JSON output including domain, URL, status, x-cache, cache-control, and age headers. A complete cache_poison scan produces structured JSON output: {
+ "target" : "https://example.com" ,
+ "cached_url" : "https://example.com/static/main.css" ,
+ "infrastructure" : { "cdn" : "cloudflare" , "framework" : "express" },
+ "findings" : [
+ {
+ "header_name" : "x-forwarded-host" ,
+ "reflected" : true ,
+ "reflection_context" : "attribute_url" ,
+ "reflection_snippet" : "...href=\"//cxp1_a7f3b2c1/static/main.css\"..." ,
+ "cached" : true ,
+ "confidence" : "CONFIRMED" ,
+ "exploit_type" : "xss" ,
+ "exploit_suggestion" : "Set x-forwarded-host: evil.com → cached XSS via attribute_url injection" ,
+ "signal_type" : "reflection" ,
+ "vary_scope" : "global (all_profiles)" 
+ }
+ ],
+ "cpdos_findings" : [
+ {
+ "header_name" : "x-oversized-header" ,
+ "header_value" : "AAAAAAAAAA..." ,
+ "error_status" : 431 ,
+ "cached" : true ,
+ "error_body_preview" : "<html><body><h1>431 Request Header Fields Too Large</h1>..." ,
+ "attack_class" : "cpdos" 
+ },
+ {
+ "header_name" : "user-agent" ,
+ "header_value" : "sqlmap/1.0" ,
+ "error_status" : 403 ,
+ "cached" : false ,
+ "error_body_preview" : "<!DOCTYPE html><html><head><title>Access Denied..." ,
+ "attack_class" : "waf_poison" 
+ }
+ ],
+ "scan_stats" : {
+ "mode" : "fast" ,
+ "headers_tested" : 376 ,
+ "influential_found" : 3 ,
+ "findings_count" : 1 ,
+ "cpdos_count" : 2 ,
+ "cpdos_by_class" : { "cpdos" : 1 , "waf_poison" : 1 },
+ "requests_sent" : 98 ,
+ "time_s" : 32.1 
+ }
+ }
+ # 
+The Shared Infrastructure All twelve tools share a common foundation: http_client.py (567 lines), cdn_fingerprint.py (513 lines), and reporter.py (225 lines). # 
+The HTTP Client Every request returns a ResponseFingerprint : @dataclass 
+ class ResponseFingerprint :
+ url: str
+ method: str
+ status: int
+ body_hash: str # SHA-256 of normalized response body 
+ body_length: int
+ content_type: str
+ headers: dict[str, str] # All response headers (lowercased keys) 
+ cache_status: str | None # HIT/MISS/DYNAMIC from 12+ vendor-specific headers 
+ cache_headers: dict # Only cache-relevant headers 
+ timing_ms: float # Response time in milliseconds 
+ body_preview: bytes # First 2KB for content analysis 
+ reflected_inputs: list # Canary strings found in body 
+ waf_detected: str | None # Cloudflare challenge, Akamai block, Imperva, etc. 
+ protocol: str # h1.1 or h2 
+ The body hashing deserves special mention. Cloudflare’s email obfuscation feature rotates a hex token in data-cfemail attributes on every request, which means identical pages produce different SHA-256 hashes. The Berto et al. paper (CLOSER 2024) identified this as a false positive source in WCD detection. My client normalises these tokens before hashing: _CF_EMAIL_RE = re . compile( rb 'data-cfemail="[a-f0-9]+"' )
+ def _normalize_body (body: bytes, cdn_hint: str = "" ) -> bytes:
+ if cdn_hint . lower() == "cloudflare" :
+ body = _CF_EMAIL_RE . sub( b 'data-cfemail="NORMALIZED"' , body)
+ return body
+ Rate limiting is semaphore-based with adaptive backoff: CDN_RATE_PROFILES = {
+ "cloudflare" : 15 , # Generous rate limits 
+ "cloudfront" : 10 ,
+ "akamai" : 5 , # Aggressive WAF — go slow 
+ "fastly" : 12 ,
+ "imperva" : 5 , # Incapsula WAF — go slow 
+ "default" : 10 ,
+ }
+ def _handle_error_backoff (self, status, waf):
+ if waf:
+ self . current_rate = max( 1.0 , self . current_rate * 0.5 ) # halve rate 
+ self . _consecutive_errors += 3 # aggressive backoff 
+ elif status in ( 429 , 503 ):
+ self . _consecutive_errors += 1 
+ else :
+ # Successful: gradually recover 
+ self . current_rate = min(self . base_rate, self . current_rate * 1.1 )
+ # Exponential backoff: 2^n seconds, capped at 60s 
+ backoff = min( 60.0 , 2.0 ** self . _consecutive_errors)
+ Cache busting goes beyond query parameters. Following the RAID 2024 finding that query-string busting only works on 60.4% of sites, I also send supplementary headers: def generate_cachebuster_headers () -> dict[str, str]:
+ """Increases cache busting coverage from 60.4% to 84.3% (RAID 2024).""" 
+ rand = random . randint( 100000 , 999999 )
+ return {
+ "Origin" : f "https://cachebust- { rand } .example.com" ,
+ "X-Forwarded-Host" : f "cachebust- { rand } .example.com" ,
+ "X-Forwarded-Scheme" : "https" if random . random() > 0.5 else "http" ,
+ }
+ # 
+CDN Fingerprinting The fingerprint database contains 30+ CDN signatures, 12 proxy signatures, and 19 framework signatures, each with confidence scores. A database of known CDN default behaviours — whether the CDN normalises paths, sorts query parameters, includes the port in the cache key, case-sensitivity — provides the calibration baseline. A lookup table maps 8 frameworks and proxies to their known path delimiters, which cache_diff uses to prioritise its byte fuzzing order. # 
+Design Decisions and Trade-Offs Why Python, not Go or Rust? Speed is not the bottleneck. Network I/O is. A cache exploitation scanner spends 99% of its time waiting for HTTP responses. Python’s asyncio with httpx provides excellent async HTTP/2 support, and the development velocity advantage let me iterate faster on the detection logic, which is where the real complexity lives. Why binary search instead of concurrent group testing? I tested sending all 10,000 headers simultaneously partitioned across concurrent requests. The problem: many targets have header size limits (431 errors), rate limits that kick in faster with concurrent requests, and WAFs that flag traffic patterns. Binary search is slower in wall-clock time but dramatically more reliable and stealthier. Why canary-based detection instead of pure diffing? Pure response diffing (comparing body hashes) produces false positives from dynamic content: timestamps, CSRF tokens, ad slots, A/B test variants. Canary-based detection — checking whether my specific injected value appears in the response — is more precise. I use pure diffing only as a secondary signal (size delta, new headers, status change) where canary detection doesn’t apply. Why headless CLI instead of a GUI? Independence from desktop tooling matters for automation at scale. My tools run headless on a VPS, produce JSON output, and integrate with any pipeline. # 
+What I Learned CDN documentation ’lies’. Not intentionally — but documentation describes defaults, and real-world configurations are customised per-property. I found Cloudflare deployments where X-Forwarded-Host was NOT in the cache key (despite being a default), and Akamai deployments where the debug headers were blocked. Empirical cache key reversal — testing what’s keyed by observing behaviour — is the only reliable approach. Body hash normalisation is critical. Before I added the Cloudflare email obfuscation normalisation, every Cloudflare-fronted target produced false positives in the diff engine. Same page, different data-cfemail values, different hashes. One regex fixed months of frustration. Header size limits are a real constraint. About 30% of targets return 431 (Request Header Fields Too Large) when I send 20 custom headers simultaneously. The adaptive group-size reduction — splitting into sub-groups of 5 on 431 — was essential for reliability. The long tail is where the money is. The headers that yield findings are rarely the well-known ones. They’re custom headers from specific frameworks, CDN-internal headers that were documented once in a blog post, and proxy headers that developers added for debugging and forgot to remove. The BigQuery harvesting pipeline finds these. Internal caches are a different beast. External CDN caches are predictable: send one request with a poison header and a cachebuster, wait, verify. Application-level caches (Rails fragment caching, Django template caching, custom in-memory stores) don’t respond to a single write. They need sustained priming — sometimes 20+ requests — before a cached fragment gets overwritten. This makes automated confirmation unreliable: a single-attempt oracle will always say “not cached” even when the header has real influence. The right approach is to detect the influence (header reflected in response) and flag it as PROBABLE when no CDN is detected, then optionally attempt sustained priming for confirmation. Test the right URL. A scanner that picks /favicon.ico for testing because it’s obviously cached will miss every vulnerability that only affects dynamic pages. Static files don’t have JavaScript sinks, template variables, or reflected parameters. Always test headers against the user’s intended target URL, not just the first cacheable static resource you find. Your HTTP client’s cookie handling matters more than you think. Many CDNs refuse to cache responses with Set-Cookie headers. If your scanner doesn’t persist cookies across requests within a session, it always looks like a first-time visitor, always gets Set-Cookie , and concludes the page is uncacheable. A real browser (or an HTTP client that handles cookies) sends the cookie on the second request, the server omits Set-Cookie , the CDN sees a cacheable response, and the vulnerability becomes testable. This is why manual curl testing can give different results than automated scanning with httpx — curl doesn’t persist cookies between invocations. CP-DoS is not one attack — it’s a taxonomy. Before reading HCache, I treated CP-DoS as a single technique: send a bad header, get an error cached. After implementing their full attack taxonomy, I realised I’d been testing less than a third of the attack surface. The RFC-compliant conditional header attacks are particularly insidious because they use completely legitimate HTTP headers with completely legitimate syntax. If-Modified-Since: Thu, 01 Jan 2099 00:00:00 GMT would pass any WAF rule, any header validation, any logging filter. The only thing wrong with it is the date is in the future — and that’s enough to make the origin return 304, which the CDN dutifully caches, denying content to everyone. The lesson generalises: when you think you’ve covered an attack class, go read the academic literature. Researchers systematically enumerate possibilities in ways that practitioners (myself included) don’t. WAF-as-attack-vector is a configuration problem, not a WAF problem. WAF poisoning isn’t a vulnerability in the WAF itself. The WAF is doing exactly what it’s configured to do: block requests that match attack signatures. The vulnerability is the interaction between the WAF and the cache layer. If the WAF’s 403 block page gets cached and served to clean requests, the WAF has become the attack. The fix is either configuring the CDN to never cache 403 responses, or configuring the WAF to add Cache-Control: no-store to block pages. Neither is the default on most platforms, which is why HCache found this pattern on 225 sites across the Tranco Top 1K. Your HTTP library’s transport layer is a hidden filter. When I added metacharacter injection payloads, I discovered that h11 (Python’s HTTP/1.1 parser, used by httpx, uvicorn, and Starlette) silently rejects requests containing \x00 , \x0A , \x0B , \x0C , or \x0D in header values. The rejection happens at the transport layer before the request is ever sent. This means any scanner using httpx literally cannot test five of the most interesting control bytes. The workaround is to only test the control bytes that h11 allows through — \x01 , \x08 , \x1b , \x7f — and accept that the remaining bytes would require a raw socket or a different HTTP library to test. I eventually did add raw socket support for one specific case: the illegal header name injection module (Akamai CP-DoS), where the attack requires characters in header names that h11 also rejects. But for header value testing, the h11 filter remains. The lesson: know your tools’ implicit constraints, because they silently narrow your test coverage. # 
+What’s Next The pipeline described here covers cache poisoning and cache deception as independent attack classes. The highest-impact next step is automated chain detection — specifically, combining cache deception with Client-Side Path Traversal (CSPT). The CSPT-cache deception chain is responsible for the ChatGPT ATO and Zere’s account takeover write-up. The pattern: find JavaScript that makes a fetch call with user-controlled path segments ( fetch(\ /api/users/${userId}`)`), then use a cache-deceptable path with a traversal payload to make the victim’s browser request a sensitive endpoint via the CSPT sink, causing the CDN to cache their authenticated response. Detecting this chain requires static analysis of target JavaScript to find CSPT sinks, combined with the cache deception findings from cache_diff . I have the cache side built. The JS analysis side integrates with my existing tooling (self-developed and third-party) for taint-traced DOM analysis. The CSPT sink detection prototype identifies fetch() and XMLHttpRequest calls with user-controlled path segments in target JavaScript — the remaining work is integrating it with cache_diff output (matching delimiter mismatches to CSPT sinks on the same origin) and reducing the false positive rate on minified JavaScript to a level acceptable for unattended scanning. # 
+Known Limitations No tool covers everything. These are the gaps I’m aware of: Transport-layer byte filtering. Python’s h11 HTTP parser rejects five control bytes ( \x00 , \x0A , \x0B , \x0C , \x0D ) at the transport layer before requests are sent. The metacharacter injection module can only test the bytes h11 allows through in header values . I’ve partially addressed this for header names — the illegal header name injection module drops to raw TCP sockets to bypass h11’s validation, specifically for Akamai CP-DoS testing. But for header values, exhaustive control-byte testing would still require a modified HTTP library or raw sockets throughout the scanner — a trade-off I haven’t made, since h11/httpx provides reliable HTTP/2 support that raw sockets would sacrifice. Priming heuristic is blunt. The 20-request internal cache priming is a fixed number, not adaptive. Caches with sub-second TTLs, write-through invalidation, or probabilistic eviction may need different priming strategies. For now, “20 requests and check” is good enough for most application-level caches, but it’s not optimal. No JavaScript analysis (yet). The cache deception module finds path delimiter mismatches but doesn’t analyse target JavaScript for Client-Side Path Traversal sinks. The CSPT chain — where a cache-deceptable path is used via a JavaScript fetch sink — is currently detected only through manual review. Automated CSPT detection is the primary planned addition (see What’s Next). Single-request oracle assumption. The cache key oracle sends one prime request followed by one verify request. This works for CDN-level caches but can produce false negatives against multi-layer cache stacks where different layers have different TTLs or key configurations. The multi-request priming mode partially addresses this, but a truly robust oracle would need to account for cache hierarchy. # 
+A Note on Use This toolkit is designed for authorised security testing — bug bounty programs, penetration tests with written scope, and security research on infrastructure you own or have explicit permission to test. Cache poisoning, by definition, affects shared infrastructure. An unkeyed header that poisons a CDN cache can serve malicious content to real users. Every scan mode includes cache busters to isolate test requests, but no isolation is perfect. Test responsibly. # 
+Numbers Metric Value Total code 13,190 lines (Python + Bash) Tools 12 (probe, timing, diff, poison, harvest, builder, batch, discover, weaponize, bounty_cache_scan, dashboard, find_cacheable) Shared libraries 3 (http_client 567, cdn_fingerprint 513, reporter 225) Largest tools cache_poison 3,649 · cache_diff 1,658 · bounty_cache_scan 1,213 · weaponize 1,004 · dashboard 892 Poison scanner test methods 24 distinct attack modules Header wordlist 10,244 entries CDN signatures 30+ (9 major CDNs) Framework signatures 19 (10 frameworks) Proxy signatures 12 (8 proxies) Byte-level probes per URL Up to 2,304 (256 bytes x 3 positions x 3 encodings) Binary search efficiency 10K headers in ~560 requests Discovery sources 4 (static wordlist, katana crawl, gau archives, BigQuery HTTP Archive) Weaponize phases 4 (discover sensitive endpoints → verify delimiters → assess impact → generate PoC) Bounty platforms 5 (HackerOne, Bugcrowd, Intigriti, YesWeHack, Federacy) CP-DoS payloads 56 across 4 classes: 35 traditional/HCache + 16 WAF poison + 5 illegal header name (covers all 14 HCache CCS'24 attack types) Exploit classifications 22 types (XSS, redirect, session fixation, CSP bypass, clickjacking, HSTS bypass, content-type confusion, method override, behaviour poisoning, info disclosure, normalization bypass, H2 confusion, parameter cloaking, path normalization, WAF poisoning, metacharacter injection, OAuth hijack, import hijack, payload splitting, cache invalidation, TTL manipulation, framework cache poison) Attack surfaces tested Headers, cookies, query strings, query parameters, URL path encoding, body parameters (fat GET), HTTP/2 pseudo-headers, content negotiation, method override, WAF trigger patterns, protocol upgrade negotiation, fragment forwarding, cache invalidation methods, surrogate/CDN-control headers, OAuth/OIDC endpoints, multi-CDN layer mismatches, Next.js ISR/SSG framework cache, cross-input payload splitting The toolkit is designed for a single operator running from a VPS against bug bounty targets. The full pipeline — from endpoint discovery through per-endpoint scanning to automated weaponization — runs unattended. Every CDN-aware rate limit, every adaptive backoff, every safe-mode cachebuster is there to make it usable against real targets without tripping defences or polluting production caches. Any errors in this post are all my own work! 
+ copy link 
+ discuss on hn
+ cite // related research 2026-02-17 Parallax Differential cache analysis toolkit for web cache poisoning and deception -- 13,000+ lines implementing CDN-aware fingerprinting, binary search header testing, byte-level path fuzzing, and automated exploit weaponization 2026-03-29 187 Commits Later: How Mastermind AI Evolved in 8 Weeks From 57 skills to 93. From manual hunting to autonomous fork-based parallelism. From blind fuzzing to parser differential engines. A technical changelog of 8 weeks of continuous development on an AI-powered bug bounty platform. 2026-03-10 One Proxy. One AI. One System: Integrating Caido into mastermind-ai (Part 1) How I seamlessly integrate Caido into mastermind-ai to create a single offensive security platform. ← SPA Hunter: A Claude Skill for Client-Side State Manipulation 
+ "I Am Speaking the Native Language of the Borg": What Happens When You Ask Gemini to Look at Itself → // comments © 2026 trace37 labs — offensive security research & services · RSS · GitHub 

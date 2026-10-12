@@ -17,6 +17,7 @@ import {
   type ContentMatch
 } from "../../../core/engines/ssrf/canary.ts";
 import { executeSsrfPlan, type SsrfExecutionOutcome } from "../../../core/engines/ssrf/executor.ts";
+import { TraceSink } from "../../../core/trace.ts";
 
 export interface ScanOptions {
   canaryUrl?: string;
@@ -149,12 +150,14 @@ async function main() {
     console.error("  --redis-write-file=<f>   File containing write payload (webshell, etc.)");
     console.error("  --redis-write-dir=<dir>  Target directory for write (default: /var/www/html/)");
     console.error("  --redis-write-name=<fn>  Target filename (default: shell.php)");
+    console.error("  --trace=<file>           Write NDJSON trace (per-probe records + summary)");
     process.exitCode = 1;
     return;
   }
 
   const options: ScanOptions = {};
   let slackWebhook: string | undefined;
+  let traceFile: string | undefined;
 
   for (const arg of process.argv.slice(4)) {
     if (arg.startsWith("--canary=")) {
@@ -192,17 +195,27 @@ async function main() {
       options.redisWriteDir = arg.slice(arg.indexOf("=") + 1);
     } else if (arg.startsWith("--redis-write-name=")) {
       options.redisWriteFilename = arg.slice(arg.indexOf("=") + 1);
+    } else if (arg.startsWith("--trace=")) {
+      traceFile = arg.slice(arg.indexOf("=") + 1);
     }
   }
 
   const result = runSsrfScan(targetUrl, parameter, options);
+  const trace = traceFile ? new TraceSink(traceFile) : undefined;
 
   if (options.execute) {
+    trace?.event("run.start", { target: targetUrl, command: "ssrf-run" });
     const outcome: SsrfExecutionOutcome = await executeSsrfPlan(targetUrl, parameter, result, {
       timeoutMs: options.timeout ?? 5000,
       maxAttempts: options.max,
       slackWebhook: options.slackWebhook,
-      verbose: options.verbose
+      verbose: options.verbose,
+      trace
+    });
+    trace?.summary({
+      findings: outcome.confirmed,
+      phase: outcome.phase,
+      statistical: Boolean(outcome.statistical)
     });
     if (options.verbose) {
       console.error(`[INFO] Executed ${outcome.attempts} payloads. confirmed=${outcome.confirmed} phase=${outcome.phase}`);

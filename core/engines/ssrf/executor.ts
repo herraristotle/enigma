@@ -3,9 +3,12 @@ import {
   NotificationManager,
   SlackNotification,
   TerminalNotification,
+  TimingAnalyzer,
+  SizeAnalyzer,
   type ContentMatch,
   type ScanResult
 } from "./canary.ts";
+import type { TraceSink } from "../../trace.ts";
 import {
   advanceScanState,
   assessImpact,
@@ -23,6 +26,8 @@ export interface SsrfExecutionOptions {
   /** Inject a preconfigured manager (tests); overrides slackWebhook default. */
   notifications?: NotificationManager;
   verbose?: boolean;
+  /** NDJSON trace sink — emits one probe record per request. */
+  trace?: TraceSink;
 }
 
 export interface SsrfExecutionOutcome {
@@ -30,6 +35,31 @@ export interface SsrfExecutionOutcome {
   phase: string;
   attempts: number;
   confirmed: number;
+  /** Blind fallback (OOB unavailable): statistical timing + size side channels. */
+  statistical?: {
+    timing: ReturnType<typeof TimingAnalyzer.analyze>;
+    sizes: ReturnType<typeof SizeAnalyzer.analyzeGroups>;
+  };
+}
+
+/** Payload destination host (measurement target for timeout patterns). */
+function hostOf(payload: string): string {
+  try {
+    return new URL(payload).hostname;
+  } catch {
+    return payload;
+  }
+}
+
+function isInternalHost(host: string): boolean {
+  const h = host.toLowerCase();
+  if (h === "localhost" || h === "::1" || h.endsWith(".local")) return true;
+  const m = h.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+  if (!m) return false;
+  const a = Number(m[1]);
+  const b = Number(m[2]);
+  return a === 127 || a === 10 || (a === 192 && b === 168) ||
+    (a === 172 && b >= 16 && b <= 31) || (a === 169 && b === 254);
 }
 
 /** Statuses that indicate a defensive block rather than absence of signal. */
@@ -79,9 +109,13 @@ export async function executeSsrfPlan(
   if (!parameter) throw new TypeError("parameter is required");
 
   const timeoutMs = options.timeoutMs ?? 5000;
+  options.trace?.setStage("ssrf");
   const notifications = options.notifications ?? buildDefaultNotifications(options.slackWebhook);
   let state = createScanState(options.maxAttempts ?? plan.length);
   const results: ScanResult[] = [];
+  const measurements: Array<{ target: string; durationMs: number }> = [];
+  const internalSizes: number[] = [];
+  const externalSizes: number[] = [];
   let confirmed = 0;
 
   for (const item of plan) {
@@ -90,6 +124,7 @@ export async function executeSsrfPlan(
     let matches: ContentMatch[] = [];
     let level: Classification["level"] = "none";
     let httpStatus = 0;
+    let bodyLen = 0;
 
     try {
       const url = new URL(targetUrl);
@@ -102,6 +137,7 @@ export async function executeSsrfPlan(
       });
       httpStatus = response.status;
       const body = await response.text();
+      bodyLen = body.length;
       const classified = classifyResponse(httpStatus, body);
       status = classified.result;
       matches = classified.matches;
@@ -119,6 +155,20 @@ export async function executeSsrfPlan(
       }
     }
 
+    const durationMs = Date.now() - started;
+    measurements.push({ target: hostOf(item.payload), durationMs });
+    if (httpStatus > 0) {
+      if (isInternalHost(hostOf(item.payload))) internalSizes.push(bodyLen);
+      else externalSizes.push(bodyLen);
+    }
+    options.trace?.probe({
+      method: "GET",
+      url: targetUrl,
+      status: status === "error" ? 0 : httpStatus,
+      latencyMs: durationMs,
+      reason: `${item.category}:${status}`
+    });
+
     const scanResult: ScanResult = {
       target: targetUrl,
       payload: item.payload,
@@ -126,7 +176,7 @@ export async function executeSsrfPlan(
       category: item.category,
       status,
       timestamp: Date.now(),
-      durationMs: Date.now() - started,
+      durationMs,
       contentMatches: matches.length > 0 ? matches : undefined,
       confirmationLevel: status === "error" ? undefined : level
     };
@@ -159,10 +209,19 @@ export async function executeSsrfPlan(
     if (!advanced.shouldContinue) break;
   }
 
-  return {
+  const outcome: SsrfExecutionOutcome = {
     results,
     phase: state.phase,
     attempts: state.attempts,
     confirmed
   };
+  // Blind fallback: no direct confirmation → statistical timing + size
+  // side channels (competitor parity: "statistical timing analysis").
+  if (confirmed === 0 && measurements.length >= 2) {
+    outcome.statistical = {
+      timing: TimingAnalyzer.analyze(measurements, { baselineMs: timeoutMs }),
+      sizes: SizeAnalyzer.analyzeGroups(internalSizes, externalSizes)
+    };
+  }
+  return outcome;
 }

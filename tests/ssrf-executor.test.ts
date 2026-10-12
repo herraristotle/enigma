@@ -166,3 +166,35 @@ test("executor validates inputs", async () => {
   await assert.rejects(() => executeSsrfPlan("", "url", []), TypeError);
   await assert.rejects(() => executeSsrfPlan("http://x", "", []), TypeError);
 });
+
+test("blind plan with no confirmation attaches statistical timing + size analysis", async () => {
+  const harness = await startServer((_req, res) => {
+    res.writeHead(200, { "content-type": "text/plain" });
+    res.end("benign response");
+  });
+  try {
+    const outcome = await executeSsrfPlan(
+      `http://127.0.0.1:${harness.port}/fetch`,
+      "url",
+      plan(
+        { category: "internal service", payload: "http://10.0.0.1/admin", technique: "direct" },
+        { category: "internal service", payload: "http://192.168.1.1/", technique: "direct" },
+        { category: "external service", payload: "http://example.com/", technique: "direct" },
+        { category: "external service", payload: "http://example.org/", technique: "direct" }
+      ),
+      { notifications: new NotificationManager(), timeoutMs: 3000 }
+    );
+    assert.strictEqual(outcome.confirmed, 0, "expect blind (no direct confirmation)");
+    assert.ok(outcome.statistical, "blind fallback must attach statistical analysis");
+    const { timing, sizes } = outcome.statistical;
+    assert.ok(typeof timing.mean === "number");
+    assert.ok(typeof timing.stdDev === "number");
+    assert.ok(Array.isArray(timing.outliers));
+    assert.ok(Array.isArray(timing.timeouts));
+    assert.ok(sizes.confidence === "high" || sizes.confidence === "medium" || sizes.confidence === "low");
+    assert.ok(typeof sizes.difference === "number");
+    assert.ok(Array.isArray(sizes.anomalies));
+  } finally {
+    await harness.close();
+  }
+});
