@@ -159,7 +159,7 @@ export function selectCspBypassStrategies(header: string): CspBypassStrategy[] {
 }
 
 /**
- * DOM-side nonce extractor — runs in Puppeteer to scrape a live nonce from
+ * DOM-side nonce extractor — runs in Playwright to scrape a live nonce from
  * existing `<script>` tags on the page. Useful when CSP is enforced via
  * meta tag or when the response CSP is inflated by a reverse proxy and the
  * only reliable nonce is the one already injected into the rendered DOM.

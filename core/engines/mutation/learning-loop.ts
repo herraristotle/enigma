@@ -19,7 +19,7 @@
  *
  * The loop is intentionally framework-agnostic: an adapter supplies the test
  * result and学习者 receives back the next rotor phase. This keeps the module
- * decoupled from Puppeteer and reusable by the SSRF runner if it later adopts
+ * decoupled from Playwright and reusable by the SSRF runner if it later adopts
  * a learning accumulation model.
  */
 

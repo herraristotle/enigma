@@ -1,4 +1,5 @@
 import { MutationComposer } from "../engines/mutation/composer.ts";
+import { detectAngularVersion } from "../engines/mutation/angular.ts";
 import { detectContext, dualProbeSequence, type ContextName } from "../engines/mutation/context-techniques.ts";
 import { getBaselineForContext } from "../engines/mutation/baselines.ts";
 import { runBinarySearch, type TriggerProbeAdapter } from "../engines/trigger-finder.ts";
@@ -7,6 +8,7 @@ import { DecisionTreeLogger } from "../visualization/logger.ts";
 import { LearningLoop, rotorToPhase, type LearningLoopSnapshot } from "../engines/mutation/learning-loop.ts";
 import { buildMxssDetectionScript, analyzeMxss, type MxssVerdict } from "../engines/mutation/mxss.ts";
 import { type StoredXssStage, type WorkflowRunResult, validateWorkflow, transformPayload } from "./workflow.ts";
+import type { Browser, Page, Response } from "playwright";
 
 export interface BrowserObservation {
   statusCode: number;
@@ -35,8 +37,16 @@ export interface RunOptions {
 
 export interface BrowserAdapter extends TriggerProbeAdapter {
   injectHooks(script: string): Promise<void>;
+  evaluate?(script: string): Promise<unknown>;
   navigate(target: string, parameter: string, payload: string, options?: RunOptions): Promise<BrowserObservation>;
   close?(): Promise<void>;
+}
+
+function isMxssDetectionResult(value: unknown): value is { verdict: string; sinks?: string[] } {
+  if (typeof value !== "object" || value === null || !("verdict" in value)) return false;
+  if (typeof value.verdict !== "string") return false;
+  return !("sinks" in value) || value.sinks === undefined
+    || (Array.isArray(value.sinks) && value.sinks.every(sink => typeof sink === "string"));
 }
 
 export interface RunResult {
@@ -200,11 +210,13 @@ export class EnigmaRunner {
 
         // mXSS detection on reflected-but-not-executed payloads
         if (this.options.enableMxssDetection && result.reflected && !result.blocked && !result.executed) {
-          const mxssCheck = await this.browser.evaluate(buildMxssDetectionScript() + `\n__enigmaMxssDetect(${JSON.stringify(candidate.payload)});`);
-          const verdict = analyzeMxss(mxssCheck);
-          if (verdict.verdict === "mxss_mutation") {
-            logger.record("mxss", "detected", `Mutation XSS detected: ${verdict.matchedVector?.name} → ${verdict.exposesSink}`);
-            if (this.options.verbose) console.log(`[mXSS] Parser-differential mutation detected: ${verdict.matchedVector?.name}`);
+          const mxssCheck = await this.browser.evaluate?.(buildMxssDetectionScript() + `\n__enigmaMxssDetect(${JSON.stringify(candidate.payload)});`);
+          if (isMxssDetectionResult(mxssCheck)) {
+            const verdict = analyzeMxss(mxssCheck);
+            if (verdict.verdict === "mxss_mutation") {
+              logger.record("mxss", "detected", `Mutation XSS detected: ${verdict.matchedVector?.name} → ${verdict.exposesSink}`);
+              if (this.options.verbose) console.log(`[mXSS] Parser-differential mutation detected: ${verdict.matchedVector?.name}`);
+            }
           }
         }
 
@@ -384,16 +396,16 @@ export class EnigmaRunner {
   }
 }
 
-export class PuppeteerBrowserAdapter implements BrowserAdapter {
-  private browser: any;
-  private page: any;
+export class PlaywrightBrowserAdapter implements BrowserAdapter {
+  private browser?: Browser;
+  private page?: Page;
   private lastTarget = "https://example.com";
   private lastParameter = "q";
   private lastOptions: RunOptions = {};
 
   async init(headless = true): Promise<void> {
-    const puppeteer = await import("puppeteer");
-    this.browser = await puppeteer.launch({
+    const { chromium } = await import("playwright");
+    this.browser = await chromium.launch({
       headless,
       args: [
         "--no-sandbox",
@@ -407,12 +419,18 @@ export class PuppeteerBrowserAdapter implements BrowserAdapter {
   }
 
   async injectHooks(script: string): Promise<void> {
-    if (!this.page) throw new Error("PuppeteerBrowserAdapter.init() must run before injectHooks()");
-    await this.page.evaluateOnNewDocument(script);
+    if (!this.page) throw new Error("PlaywrightBrowserAdapter.init() must run before injectHooks()");
+    await this.page.addInitScript(script);
+  }
+
+  async evaluate(script: string): Promise<unknown> {
+    if (!this.page) throw new Error("PlaywrightBrowserAdapter.init() must run before evaluate()");
+    return this.page.evaluate(script);
   }
 
   async navigate(target: string, parameter: string, payload: string, options: RunOptions = {}): Promise<BrowserObservation> {
-    if (!this.page) throw new Error("PuppeteerBrowserAdapter.init() must run before navigate()");
+    const page = this.page;
+    if (!page) throw new Error("PlaywrightBrowserAdapter.init() must run before navigate()");
 
     this.lastTarget = target;
     this.lastParameter = parameter;
@@ -421,42 +439,52 @@ export class PuppeteerBrowserAdapter implements BrowserAdapter {
     if (options.cookie) {
       const urlObj = new URL(target);
       const cookies = options.cookie.split(";").map(c => {
-        const [name, value] = c.split("=").map(s => s.trim());
+        const separator = c.indexOf("=");
+        if (separator <= 0) return null;
+        const name = c.slice(0, separator).trim();
+        const value = c.slice(separator + 1).trim();
+        if (!name) return null;
         return { name, value, domain: urlObj.hostname };
-      });
-      await this.page.setCookie(...cookies);
+      }).filter((cookie): cookie is { name: string; value: string; domain: string } => cookie !== null);
+      if (cookies.length > 0) await page.context().addCookies(cookies);
     }
 
     let executed = false;
     let cdpNavigated = false;
     
-    this.page.removeAllListeners("dialog");
-    this.page.removeAllListeners("request");
+    page.removeAllListeners("dialog");
     
-    this.page.on("dialog", async (dialog: any) => {
+    page.on("dialog", async dialog => {
       executed = true;
       await dialog.dismiss();
     });
-
-    await this.page.setRequestInterception(true);
-    this.page.on("request", (req: any) => {
-      if (req.url().startsWith("javascript:")) {
+    page.removeAllListeners("framenavigated");
+    page.on("framenavigated", frame => {
+      if (frame === page.mainFrame() && frame.url().startsWith("javascript:")) {
         cdpNavigated = true;
         executed = true;
-        req.abort().catch(() => {});
+      }
+    });
+
+    await page.unrouteAll({ behavior: "wait" });
+    await page.route("**/*", async route => {
+      const request = route.request();
+      if (request.url().startsWith("javascript:")) {
+        cdpNavigated = true;
+        executed = true;
+        await route.abort().catch(() => {});
       } else {
-        // Handle Header Injection
         if (options.injectHeader && parameter === options.injectHeader) {
-          const headers = req.headers();
-          headers[options.injectHeader] = payload;
-          req.continue({ headers }).catch(() => {});
+          const headers = await request.allHeaders();
+          headers[options.injectHeader.toLowerCase()] = payload;
+          await route.continue({ headers }).catch(() => {});
         } else {
-          req.continue().catch(() => {});
+          await route.continue().catch(() => {});
         }
       }
     });
 
-    let response: any = null;
+    let response: Response | null = null;
     let responseBody = "";
     const url = new URL(target);
 
@@ -474,30 +502,30 @@ export class PuppeteerBrowserAdapter implements BrowserAdapter {
         const injectData = new URLSearchParams(options.formData);
         injectData.set(parameter, payload);
         
-        await this.page.goto(url.toString(), { waitUntil: "domcontentloaded" });
-        await this.page.evaluate((action: string, data: string) => {
+        await page.goto(url.toString(), { waitUntil: "domcontentloaded" });
+        await page.evaluate(({ action, data }: { action: string; data: string }) => {
           return fetch(action, {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body: data
           });
-        }, url.toString(), injectData.toString());
+        }, { action: url.toString(), data: injectData.toString() });
 
-        response = await this.page.goto(options.observeUrl, { waitUntil: "networkidle2" });
+        response = await page.goto(options.observeUrl, { waitUntil: "networkidle" });
       } else {
-        response = await this.page.goto(url.toString(), { waitUntil: "domcontentloaded" });
+        response = await page.goto(url.toString(), { waitUntil: "domcontentloaded" });
       }
       
       // Allow async auto-fire executors to run (e.g. timeout, intervals, animations)
       await new Promise(r => setTimeout(r, 100));
-      responseBody = await this.page.content();
+      responseBody = await page.content();
     } catch (e: any) {
       if (e.message.includes("net::ERR_ABORTED") && cdpNavigated) {
         executed = true; // javascript: navigation aborted intentionally
       }
     }
 
-    const xssFlag = await this.page.evaluate(() => {
+    const xssFlag = await page.evaluate(() => {
       return (window as any).__enigmaGetXssConfirmation?.();
     });
     
@@ -505,16 +533,16 @@ export class PuppeteerBrowserAdapter implements BrowserAdapter {
       executed = true;
     }
 
-    const sinkEvents = await this.page.evaluate(() => {
+    const sinkEvents = await page.evaluate(() => {
       return (window as any).__enigmaGetSinkEvents?.() ?? [];
     });
     
-    const consoleSignals = await this.page.evaluate(() => {
+    const consoleSignals = await page.evaluate(() => {
       return Array.from(document.querySelectorAll("[popover],[autofocus],svg,details")).map((node) => (node as Element).tagName.toLowerCase());
     });
 
     const reflected = responseBody.includes(payload) || responseBody.includes(encodeURIComponent(payload));
-    const cspHeader = response?.headers()?.["content-security-policy"] ?? "";
+    const cspHeader = response?.headers()["content-security-policy"] ?? "";
     const statusCode = response?.status() ?? 0;
     
     const blocked = statusCode === 403
@@ -532,7 +560,7 @@ export class PuppeteerBrowserAdapter implements BrowserAdapter {
       responseBody,
       sinkEvents: [...(Array.isArray(sinkEvents) ? sinkEvents : []), ...consoleSignals],
       cspHeader,
-      finalUrl: this.page.url()
+      finalUrl: page.url()
     };
   }
 

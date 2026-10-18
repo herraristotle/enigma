@@ -34,7 +34,7 @@
  *   1. `MXSS_VECTORS` — canonical static payloads (the static entries in
  *      `structures.ts` ADVANCED_STRATEGIES and `composer.ts` mutation_xss
  *      CSP case are folded back here for auditability).
- *   2. `buildMxssDetectionScript` — a Puppeteer `evaluateOnNewDocument`
+ *   2. `buildMxssDetectionScript` — a Playwright `addInitScript`
  *      script that hashes DOM mutations round-trip. The runner wires it
  *      when `enableMxssDetection` is set on RunOptions so each candidate
  *      payload is checked for parser-differential re-execution before the
@@ -106,7 +106,7 @@ export const MXSS_VECTORS: MxssVector[] = [
 ];
 
 /**
- * Returns a string for `page.evaluateOnNewDocument`. The injected script
+ * Returns a string for `page.addInitScript`. The injected script
  * hooks the common sanitization entry points (`Element.prototype.innerHTML`
  * setter, `document.write`, `range.createContextualFragment`) and records a
  * before/after DOM hash so mutation can be detected post-render.

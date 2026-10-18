@@ -2,7 +2,7 @@
  * DOM XSS: Sink Hooks — 30+ DOM sink interception hooks.
  *
  * "For DOM-based XSS, Enigma injects a monitoring script into every page via
- * Puppeteer's evaluateOnNewDocument().  This script monkey-patches 30+
+ * Playwright's addInitScript(). This script monkey-patches 30+
  * dangerous DOM APIs to track taint flow."
  *
  * Categories of sinks hooked:

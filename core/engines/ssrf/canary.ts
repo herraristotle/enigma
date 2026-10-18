@@ -338,7 +338,7 @@ export class SlackNotification implements NotificationChannel {
       const matchList = result.contentMatches.map(m => `• ${m.pattern} (${m.category})`).join("\n");
       payload.blocks.push({
         type: "section",
-        text: { type: "mrkdwn", text: `*Content Matches:*\n${matchList}` }
+        fields: [{ type: "mrkdwn", text: `*Content Matches:*\n${matchList}` }]
       });
     }
 
@@ -356,11 +356,14 @@ export class SlackNotification implements NotificationChannel {
 
 export class DesktopNotification implements NotificationChannel {
   async send(result: ScanResult): Promise<void> {
-    if (typeof Deno !== "undefined" && Deno.Command) {
+    const deno = (globalThis as typeof globalThis & {
+      Deno?: { Command: new (command: string, options: { args: string[] }) => { output(): Promise<unknown> } };
+    }).Deno;
+    if (deno?.Command) {
       const title = `SSRF ${result.status.toUpperCase()}`;
       const body = `${result.target} - ${result.technique}`;
       try {
-        const cmd = new Deno.Command("notify-send", { args: [title, body] });
+        const cmd = new deno.Command("notify-send", { args: [title, body] });
         await cmd.output();
       } catch {
         // Desktop notification not available

@@ -14,6 +14,22 @@ Uses a 5-rotor cascade to systematically bypass WAF protections:
 | **Structure** | Restructure payload syntax (parentheses bypass, DOM clobbering, JSFuck, comment jumping) |
 | **Execution** | Select firing mechanism (auto-fire events, browser-specific vectors, JavaScript URLs) |
 
+Enigma runs its browser automation with Playwright. Use Node.js 24 or newer and install the Chromium browser once:
+
+```bash
+npm install
+npx playwright install chromium
+```
+
+GitHub Actions runs the test suite and type-check on pushes and pull requests to `master`. Pushing a version tag such as `v1.0.0` creates a GitHub Release with generated notes:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+These releases provide source archives, not standalone executables. Running Enigma requires Node.js and a separately installed Playwright Chromium browser.
+
 ### Usage
 
 ```bash
@@ -156,7 +172,7 @@ core/engines/
     └── index.ts                 # Barrel re-exports
 
 core/runner/
-├── index.ts                     # Puppeteer-based scanner
+├── index.ts                     # Playwright-based scanner
 └── session-store.ts             # JSON session persistence
 
 core/visualization/
