@@ -730,8 +730,6 @@ function generateRecommendations(
 
 export type ScanPhase = "discovery" | "targeting" | "bypass" | "confirmation" | "impact" | "report";
 
-export type ScanResult = "confirmed" | "blocked" | "no_signal";
-
 export interface PhaseTransition {
   from: ScanPhase;
   to: ScanPhase;
