@@ -3,9 +3,7 @@
   "private": false,
   "type": "module",
   "bin": {
-    "enigma": "./cli/commands/run.ts",
-    "enigma-ssrf": "./cli/commands/ssrf/index.ts",
-    "enigma-payloads": "./cli/commands/payloads.ts"
+    "enigma": "./cli/commands/main.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
