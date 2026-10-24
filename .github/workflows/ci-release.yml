@@ -63,7 +63,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - name: Build standalone executable
-        run: npx --yes @yao-pkg/pkg@6.23.0 dist/cli/commands/run.js --targets ${{ matrix.target }} --output dist/${{ matrix.asset }} --tsconfig tsconfig.pkg.json
+        run: npx --yes @yao-pkg/pkg@6.23.0 dist/cli/commands/run.js --targets ${{ matrix.target }} --output dist/${{ matrix.asset }}
       - name: Smoke-test executable
         shell: bash
         run: ./dist/${{ matrix.asset }} --help || true

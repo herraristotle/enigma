@@ -8,7 +8,7 @@
     "enigma-payloads": "./cli/commands/payloads.ts"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "run": "node --experimental-strip-types ./cli/commands/run.ts",
     "payloads": "node --experimental-strip-types ./cli/commands/payloads.ts",
     "init": "node --experimental-strip-types ./cli/commands/init.ts",
