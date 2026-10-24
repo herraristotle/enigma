@@ -4,12 +4,12 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "allowImportingTsExtensions": true,
+    "noEmit": true,
     "strict": true,
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "isolatedModules": true,
-    "outDir": "./dist"
+    "isolatedModules": true
   },
   "include": [
     "./core/**/*.ts",

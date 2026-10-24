@@ -62,8 +62,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      - name: Bundle entry point with esbuild
+        run: npx esbuild cli/commands/run.ts --bundle --platform=node --format=cjs --outfile=dist/enigma.js
       - name: Build standalone executable
-        run: npx --yes @yao-pkg/pkg@6.23.0 cli/commands/run.ts --targets ${{ matrix.target }} --output dist/${{ matrix.asset }}
+        run: npx --yes @yao-pkg/pkg@6.23.0 dist/enigma.js --targets ${{ matrix.target }} --output dist/${{ matrix.asset }}
       - name: Smoke-test executable
         shell: bash
         run: ./dist/${{ matrix.asset }} --help || true
