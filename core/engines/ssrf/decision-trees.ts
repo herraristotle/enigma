@@ -115,7 +115,8 @@ export type SsrfPayloadCategory =
   | "redis attack"
   | "canary"
   | "header injection"
-  | "network scan";
+  | "network scan"
+  | "xmlrpc pingback";
 
 export interface SsrfPayload {
   category: SsrfPayloadCategory;
@@ -123,6 +124,13 @@ export interface SsrfPayload {
   technique?: string;
   detail?: string;
   headers?: Record<string, string>;
+  /**
+   * XML-RPC pingback items are POSTed to a fixed endpoint with an XML body
+   * instead of being injected as a query parameter.
+   */
+  method?: "GET" | "POST";
+  requestUrl?: string;
+  body?: string;
 }
 
 export interface SsrfPayloadPlanOptions {

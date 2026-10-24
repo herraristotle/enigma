@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env -S node --experimental-strip-types
 async function main(): Promise<void> {
   const command = process.argv[2];
 
@@ -43,8 +43,11 @@ async function main(): Promise<void> {
     case "run": {
       console.log("Routing to run command...");
       const targetUrl = process.argv[3];
-      const parameter = process.argv[4];
-      if (!targetUrl || !parameter) {
+      const xmlrpcFirst = process.argv.slice(4).includes("--xmlrpc-pingback");
+      // XML-RPC mode needs no injection parameter — the payload is a POST body.
+      const parameter = xmlrpcFirst && process.argv[4]?.startsWith("--") ? "" : process.argv[4];
+      const optionStart = parameter === "" ? 4 : 5;
+      if (!targetUrl || (!parameter && !xmlrpcFirst)) {
         // Just print routing log and break or let routing work
         break;
       }
@@ -58,7 +61,10 @@ async function main(): Promise<void> {
       let slackWebhook: string | undefined;
       let testHeaders = false;
       let internalTarget: string | undefined;
-      for (const arg of process.argv.slice(5)) {
+      let xmlrpcPingback = false;
+      let pingbackTargetUri: string | undefined;
+      let multicall: number | undefined;
+      for (const arg of process.argv.slice(optionStart)) {
         if (arg.startsWith("--canary=")) {
           canaryUrl = arg.slice(arg.indexOf("=") + 1);
         } else if (arg.startsWith("--max=")) {
@@ -83,9 +89,39 @@ async function main(): Promise<void> {
           testHeaders = true;
         } else if (arg.startsWith("--target=")) {
           internalTarget = arg.slice(arg.indexOf("=") + 1);
+        } else if (arg === "--xmlrpc-pingback") {
+          xmlrpcPingback = true;
+        } else if (arg.startsWith("--target-uri=")) {
+          pingbackTargetUri = arg.slice(arg.indexOf("=") + 1);
+        } else if (arg.startsWith("--multicall=")) {
+          const val = parseInt(arg.slice(arg.indexOf("=") + 1), 10);
+          if (isNaN(val) || val < 1 || val > 50) {
+            console.error("error: --multicall option requires an integer between 1 and 50");            process.exitCode = 1;
+            return;
+          }
+          multicall = val;
         }
       }
-      const scanOptions = { canaryUrl, max, noCloud, timeout, verbose, slackWebhook, testHeaders, targetUrl: internalTarget, execute };
+      let sourceUri: string | undefined;
+      if (xmlrpcPingback) {
+        if (!pingbackTargetUri) {
+          console.error("error: --xmlrpc-pingback requires --target-uri=<url>");
+          process.exitCode = 1;
+          return;
+        }
+        // Same interactsh client the blind flow uses — no second OOB mechanism.
+        const { resolveInteractshWatch } = await import("./blind.ts");
+        const oob = await resolveInteractshWatch(canaryUrl);
+        if (oob) {
+          sourceUri = oob.canaryUrl;
+          canaryUrl = oob.canaryUrl;
+        }
+      }
+      const scanOptions = {
+        canaryUrl, max, noCloud, timeout, verbose, slackWebhook, testHeaders,
+        targetUrl: internalTarget, execute,
+        xmlrpcPingback, pingbackTargetUri, multicall, sourceUri,
+      };
       const plan = runSsrfScan(targetUrl, parameter, scanOptions);
       if (execute) {
         const { executeSsrfPlan } = await import("../../../core/engines/ssrf/executor.ts");
@@ -105,8 +141,11 @@ async function main(): Promise<void> {
     case "blind": {
       console.log("Routing to blind command...");
       const targetUrl = process.argv[3];
-      const parameter = process.argv[4];
-      if (!targetUrl || !parameter) {
+      const xmlrpcBlind = process.argv.slice(4).includes("--xmlrpc-pingback");
+      // XML-RPC mode needs no injection parameter — the payload is a POST body.
+      const parameter = xmlrpcBlind && process.argv[4]?.startsWith("--") ? "" : process.argv[4];
+      const blindOptionStart = parameter === "" ? 4 : 5;
+      if (!targetUrl || (!parameter && !xmlrpcBlind)) {
         // Just print routing log and break or let routing work
         break;
       }
@@ -116,7 +155,10 @@ async function main(): Promise<void> {
       let canaryUrl: string | undefined;
       let slackWebhook: string | undefined;
       let watchTimeoutMs = 60_000;
-      for (const arg of process.argv.slice(5)) {
+      let xmlrpcPingback = false;
+      let pingbackTargetUri: string | undefined;
+      let multicall: number | undefined;
+      for (const arg of process.argv.slice(blindOptionStart)) {
         if (arg === "--dns-only") {
           dnsOnly = true;
         } else if (arg === "--watch") {
@@ -128,12 +170,49 @@ async function main(): Promise<void> {
         } else if (arg.startsWith("--watch-timeout=")) {
           const parsed = Number.parseInt(arg.slice(arg.indexOf("=") + 1), 10);
           if (Number.isFinite(parsed) && parsed >= 0) watchTimeoutMs = parsed;
+        } else if (arg === "--xmlrpc-pingback") {
+          xmlrpcPingback = true;
+        } else if (arg.startsWith("--target-uri=")) {
+          pingbackTargetUri = arg.slice(arg.indexOf("=") + 1);
+        } else if (arg.startsWith("--multicall=")) {
+          const parsed = parseInt(arg.slice(arg.indexOf("=") + 1), 10);
+          if (isNaN(parsed) || parsed < 1 || parsed > 50) {
+            console.error("error: --multicall option requires an integer between 1 and 50");
+            process.exitCode = 1;
+            return;
+          }
+          multicall = parsed;
         }
       }
-      // Self-hosted interactsh: mint canary + poll /interactions when
+      // Interactsh OOB: mint canary + poll /interactions when
       // INTERACTSH_SERVER + INTERACTSH_DOMAIN set and register succeeds.
       const oob = await resolveInteractshWatch(canaryUrl);
       if (oob) canaryUrl = oob.canaryUrl;
+
+      if (xmlrpcPingback) {
+        if (!pingbackTargetUri) {
+          console.error("error: --xmlrpc-pingback requires --target-uri=<url>");
+          process.exitCode = 1;
+          return;
+        }
+        const { buildBlindPingbackRequest } = await import("./blind.ts");
+        const request = buildBlindPingbackRequest(targetUrl, {
+          targetUri: pingbackTargetUri,
+          sourceUri: oob ? oob.canaryUrl : canaryUrl,
+          multicall,
+        });
+        console.log(JSON.stringify(request));
+        if (watch) {
+          await watchForCallbacks(oob ? oob.canaryUrl : canaryUrl || "http://localhost:8080/c/TOKEN", {
+            targetUrl,
+            parameter,
+            slackWebhook,
+            timeoutMs: watchTimeoutMs,
+            pollFn: oob?.pollFn
+          });
+        }
+        break;
+      }
       const result = runBlindSsrfScan(targetUrl, parameter, { dnsOnly, watch, canaryUrl });
       console.log(JSON.stringify(result));
       if (watch) {

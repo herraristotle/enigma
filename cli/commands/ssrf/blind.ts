@@ -1,11 +1,31 @@
 import { CanaryRegistry, NotificationManager, SlackNotification, TerminalNotification, type ScanResult } from "../../../core/engines/ssrf/canary.ts";
 import { assessImpact } from "../../../core/engines/ssrf/decision-trees.ts";
-import { InteractshClient, oobConfigFromEnv } from "../../../core/engines/ssrf/interactsh.ts";
+import { InteractshClient, oobCandidates } from "../../../core/engines/ssrf/interactsh.ts";
+import {
+  buildPingbackRequest,
+  MAX_MULTICALL,
+  type PingbackRequest,
+} from "../../../core/engines/ssrf/payloads/xmlrpc.ts";
 
 export interface BlindScanOptions {
   dnsOnly?: boolean;
   watch?: boolean;
   canaryUrl?: string;
+}
+
+/** Build the XML-RPC pingback POST used by `blind --xmlrpc-pingback`. */
+export function buildBlindPingbackRequest(
+  targetUrl: string,
+  options: { targetUri: string; sourceUri?: string; multicall?: number },
+): PingbackRequest {
+  if (!targetUrl) throw new TypeError("targetUrl is required");
+  if (!options.targetUri) throw new TypeError("targetUri is required");
+  return buildPingbackRequest({
+    targetUrl,
+    sourceUri: options.sourceUri ?? "http://localhost:8080/c/TOKEN",
+    targetUri: options.targetUri,
+    count: options.multicall,
+  });
 }
 
 export interface WatchOptions {
@@ -53,15 +73,28 @@ export function createInteractshPollFn(
 export async function resolveInteractshWatch(
   canaryUrl?: string,
 ): Promise<{ client: InteractshClient; canaryUrl: string; pollFn: (pollUrl: string) => Promise<string | null> } | null> {
-  const cfg = oobConfigFromEnv();
-  if (!cfg) return null;
-  const client = new InteractshClient(cfg);
-  if (!(await client.register())) return null;
-  return {
-    client,
-    canaryUrl: canaryUrl || `http://${client.nextPayload()}`,
-    pollFn: createInteractshPollFn(client),
-  };
+  // Try each candidate in order (self-hosted is a single entry; the public
+  // fallback rotates through oast.pro / .live / .site / .online / .fun / .me
+  // so one dead or rate-limited domain does not silently disable OOB).
+  const failures: string[] = [];
+  for (const cfg of oobCandidates()) {
+    const client = new InteractshClient(cfg);
+    if (!(await client.register())) {
+      failures.push(`${cfg.domain}${client.lastError ? ` (${client.lastError})` : ""}`);
+      continue;
+    }
+    return {
+      client,
+      canaryUrl: canaryUrl || `http://${client.nextPayload()}`,
+      pollFn: createInteractshPollFn(client),
+    };
+  }
+  // Say why OOB is off rather than degrading silently — a scan with no callback
+  // listener looks identical to a target that never called back.
+  if (failures.length > 0) {
+    console.error(`[interactsh] no OOB server available; tried: ${failures.join(", ")}`);
+  }
+  return null;
 }
 
 export function runBlindSsrfScan(
@@ -114,6 +147,23 @@ async function main() {
   const parameter = process.argv[3];
   if (!targetUrl || !parameter) {
     console.error("usage: enigma-ssrf blind <targetUrl> <parameter> [options]");
+    console.error("");
+    console.error("options:");
+    console.error("  --dns-only               Emit DNS-only callbacks");
+    console.error("  --watch                  Poll for delayed callbacks");
+    console.error("  --watch-timeout=<ms>     Watch duration (default: 60000)");
+    console.error("  --canary=<url>           OOB callback URL");
+    console.error("  --slack-webhook=<url>    Slack webhook for notifications");
+    console.error("  --xmlrpc-pingback        Use WordPress XML-RPC pingback (POST /xmlrpc.php)");
+    console.error("  --target-uri=<url>       Pingback target URI (must be a real post on the site)");
+    console.error("  --multicall=<n>          Batch pingback.ping entries via system.multicall (1-50)");
+    console.error("");
+    console.error("OOB: ProjectDiscovery public servers by default (oast.pro, .live, .site,");
+    console.error("     .online, .fun, .me — rotated on register failure). They are third-party");
+    console.error("     infrastructure that sees your callbacks and is rate-limited; use a");
+    console.error("     self-hosted server for client work: INTERACTSH_SERVER + INTERACTSH_DOMAIN");
+    console.error("     (+ INTERACTSH_TOKEN). INTERACTSH_PUBLIC=0 disables the public fallback;");
+    console.error("     INTERACTSH_PUBLIC_SERVER=oast.fun pins one public server.");
     process.exitCode = 1;
     return;
   }
@@ -123,6 +173,9 @@ async function main() {
   let canaryUrl: string | undefined;
   let slackWebhook: string | undefined;
   let watchTimeoutMs = 60_000;
+  let xmlrpcPingback = false;
+  let pingbackTargetUri: string | undefined;
+  let multicall: number | undefined;
 
   for (const arg of process.argv.slice(4)) {
     if (arg === "--dns-only") {
@@ -136,14 +189,50 @@ async function main() {
     } else if (arg.startsWith("--watch-timeout=")) {
       const parsed = Number.parseInt(arg.slice(arg.indexOf("=") + 1), 10);
       if (Number.isFinite(parsed) && parsed >= 0) watchTimeoutMs = parsed;
+    } else if (arg === "--xmlrpc-pingback") {
+      xmlrpcPingback = true;
+    } else if (arg.startsWith("--target-uri=")) {
+      pingbackTargetUri = arg.slice(arg.indexOf("=") + 1);
+    } else if (arg.startsWith("--multicall=")) {
+      const parsed = Number.parseInt(arg.slice(arg.indexOf("=") + 1), 10);
+      if (!Number.isFinite(parsed) || parsed < 1 || parsed > MAX_MULTICALL) {
+        console.error(`error: --multicall option requires an integer between 1 and ${MAX_MULTICALL}`);
+        process.exitCode = 1;
+        return;
+      }
+      multicall = parsed;
     }
   }
 
-  // Self-hosted interactsh (INTERACTSH_SERVER + INTERACTSH_DOMAIN): mint the
+  // Interactsh OOB (self-hosted preferred, public oast.* by default): mint the
   // canary from the correlation payload and poll /interactions directly.
   // Absent env or failed register → legacy CanaryRegistry + /poll path.
   const oob = await resolveInteractshWatch(canaryUrl);
   if (oob) canaryUrl = oob.canaryUrl;
+
+  if (xmlrpcPingback) {
+    if (!pingbackTargetUri) {
+      console.error("error: --xmlrpc-pingback requires --target-uri=<url>");
+      process.exitCode = 1;
+      return;
+    }
+    const request = buildBlindPingbackRequest(targetUrl, {
+      targetUri: pingbackTargetUri,
+      sourceUri: oob ? oob.canaryUrl : canaryUrl,
+      multicall,
+    });
+    console.log(JSON.stringify(request));
+    if (watch) {
+      await watchForCallbacks(oob ? oob.canaryUrl : canaryUrl || "http://localhost:8080/c/TOKEN", {
+        targetUrl,
+        parameter,
+        slackWebhook,
+        timeoutMs: watchTimeoutMs,
+        pollFn: oob?.pollFn
+      });
+    }
+    return;
+  }
 
   const result = runBlindSsrfScan(targetUrl, parameter, { dnsOnly, watch, canaryUrl });
   console.log(JSON.stringify(result));

