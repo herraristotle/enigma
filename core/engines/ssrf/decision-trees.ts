@@ -9,7 +9,7 @@ import {
 import { generateProtocolSmugglingPayloads, generateRedisAttackPayloads } from "./bypasses/protocols.ts";
 import { generateIpObfuscations } from "./bypasses/ip-obfuscation.ts";
 import { generateHeaderInjectionPayloads } from "./bypasses/header-injection.ts";
-import { CanaryRegistry } from "./canary.ts";
+import { CanaryRegistry, ScanResult } from "./canary.ts";
 
 export type StackName = "PHP" | "Python" | "Node.js" | "Java" | "Ruby" | ".NET" | "Go" | "unknown";
 
