@@ -1,24 +1,35 @@
 #!/usr/bin/env -S node --experimental-strip-types
+// Single entrypoint: `enigma <run|ssrf|payloads>`.
+//
+// The subcommand modules export `main()` and keep an
+// `import.meta.url === file://${process.argv[1]}` guard for direct execution,
+// so this router is the only caller when the CLI is invoked normally.
+//
+// Imports are static on purpose: a dynamic `import("./run.ts")` cannot be
+// resolved from the compiled output (the specifier points at a file that no
+// longer exists there), and static imports make the module graph visible to
+// `tsc`, so a missing command fails the build instead of the run.
+
+import { main as runMain } from "./run.ts";
+import { main as payloadsMain } from "./payloads.ts";
+import { main as ssrfRunMain } from "./ssrf/run.ts";
+import { main as ssrfDiscoverMain } from "./ssrf/discover.ts";
+import { main as ssrfBlindMain } from "./ssrf/blind.ts";
 
 async function main(): Promise<void> {
   const command = process.argv[2];
 
-  if (!command) {
-    console.error("usage: enigma <command> [options]");
-    console.error("commands:");
-    console.error("  run <target> <parameter> [options]     - Autonomous XSS mutation scan");
-    console.error("  ssrf run <target> <parameter> [options] - Autonomous SSRF scan");
-    console.error("  ssrf discover <target> [options]      - SSRF surface discovery");
-    console.error("  ssrf blind <target> <parameter> [options] - Blind SSRF scan");
-    console.error("  payloads --context=... [options]      - Batch payload generation");
-    process.exitCode = 1;
-    return;
-  }
+  // Each subcommand module reads its own positionals from process.argv, so the
+  // router tokens have to be removed before handing over — otherwise `run` sees
+  // "run" as the target. Direct execution of a subcommand module is unaffected.
+  const strip = (count: number): void => {
+    process.argv = [process.argv[0], process.argv[1], ...process.argv.slice(2 + count)];
+  };
 
   switch (command) {
     case "run": {
-      const { run } = await import("./run.ts");
-      await run();
+      strip(1);
+      await runMain();
       break;
     }
     case "ssrf": {
@@ -28,15 +39,12 @@ async function main(): Promise<void> {
         process.exitCode = 1;
         return;
       }
-      process.argv = [process.argv[0], process.argv[1], ssrfCommand, ...process.argv.slice(4)];
+      strip(2);
       if (ssrfCommand === "discover") {
-        const { main: discoverMain } = await import("./ssrf/discover.ts");
-        await discoverMain();
+        await ssrfDiscoverMain();
       } else if (ssrfCommand === "blind") {
-        const { main: blindMain } = await import("./ssrf/blind.ts");
-        await blindMain();
+        await ssrfBlindMain();
       } else if (ssrfCommand === "run") {
-        const { main: ssrfRunMain } = await import("./ssrf/run.ts");
         await ssrfRunMain();
       } else {
         console.error(`Unknown ssrf command: ${ssrfCommand}`);
@@ -46,13 +54,18 @@ async function main(): Promise<void> {
       break;
     }
     case "payloads": {
-      const { main: payloadsMain } = await import("./payloads.ts");
+      strip(1);
       await payloadsMain();
       break;
     }
     default:
-      console.error(`Unknown command: ${command}`);
-      console.error("commands: run, ssrf, payloads");
+      console.error("usage: enigma <command> [options]");
+      console.error("commands:");
+      console.error("  run <target> <parameter> [options]     - Autonomous XSS mutation scan");
+      console.error("  ssrf run <target> <parameter> [options] - Autonomous SSRF scan");
+      console.error("  ssrf discover <target> [options]      - SSRF surface discovery");
+      console.error("  ssrf blind <target> <parameter> [options] - Blind SSRF scan");
+      console.error("  payloads --context=... [options]      - Batch payload generation");
       process.exitCode = 1;
   }
 }

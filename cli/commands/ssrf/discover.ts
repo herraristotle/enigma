@@ -257,7 +257,7 @@ export async function discoverSsrfSurfaces(
 }
 
 // CLI Command logic
-async function main() {
+export async function main() {
   const target = process.argv[2];
   if (!target) {
     console.error("usage: enigma-ssrf discover <target.com> [--endpoint=url] [--token=jwt] [--httpql=query]");

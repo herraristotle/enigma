@@ -19,6 +19,8 @@ Enigma runs its browser automation with Playwright. Use Node.js 24 or newer and 
 ```bash
 npm install
 npx playwright install chromium
+npm run build          # compiles TypeScript to dist/
+node dist/cli/commands/main.js run "https://target.com/search" "q"
 ```
 
 GitHub Actions runs the test suite and type-check on pushes and pull requests to `master`. Pushing a version tag such as `v1.0.0` creates a GitHub Release with generated notes:
@@ -28,7 +30,9 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-These releases provide source archives, not standalone executables. Running Enigma requires Node.js and a separately installed Playwright Chromium browser.
+Each release publishes `enigma-<version>.tar.gz`: the compiled `dist/` plus `package.json`. Extract it, run `npm install --omit=dev && npx playwright install chromium` once, then `node node_modules/.bin/enigma …` or the `enigma` bin on PATH.
+
+Releases are not single-file executables on purpose. Playwright reads browser metadata (`browsers.json`) and starts an inspector from `node_modules` at runtime; a `pkg` snapshot contains neither and fails with `ERR_INSPECTOR_NOT_AVAILABLE`. Node 24 and a real `node_modules` are the supported runtime.
 
 ### Usage
 

@@ -37,7 +37,7 @@ function flagValues(name: string): string[] {
     .filter(Boolean);
 }
 
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
   const requested = flagValues("context");
   const contexts = (requested.length > 0 ? requested : ["html"])
     .map((value) => CONTEXT_ALIASES[value.toLowerCase()])
@@ -74,4 +74,6 @@ async function main(): Promise<void> {
   );
 }
 
-void main();
+if (import.meta.url === `file://${process.argv[1]}`) {
+  void main();
+}

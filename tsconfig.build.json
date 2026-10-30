@@ -4,17 +4,15 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "allowImportingTsExtensions": true,
-    "noEmit": false,
-    "emitDeclarationOnly": false,
+    "rewriteRelativeImportExtensions": true,
+    "outDir": "./dist",
+    "rootDir": "./",
     "strict": true,
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "isolatedModules": true,
-    "outDir": "./dist"
+    "isolatedModules": true
   },
-  "include": [
-    "./core/**/*.ts",
-    "./cli/**/*.ts"
-  ]
+  "include": ["core/**/*.ts", "cli/**/*.ts"],
+  "exclude": ["tests", "node_modules", "dist"]
 }

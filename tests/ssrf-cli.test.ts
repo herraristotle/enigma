@@ -4,15 +4,17 @@ import fs from "node:fs";
 import path from "node:path";
 import { execSync } from "node:child_process";
 
-test("package exposes separate enigma-ssrf binary", () => {
+test("package exposes the enigma binary", () => {
   const packageJsonPath = path.resolve(import.meta.dirname, "../package.json");
   const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
-  
+
+  // One binary, subcommands under it (`enigma ssrf run|discover|blind`). There is
+  // no separate enigma-ssrf bin; the ssrf router is reached through main.ts.
   assert.ok(packageJson.bin, "package.json missing 'bin' field");
   assert.strictEqual(
-    packageJson.bin["enigma-ssrf"],
-    "./cli/commands/ssrf/index.ts",
-    "enigma-ssrf binary mapping incorrect"
+    packageJson.bin["enigma"],
+    "./dist/cli/commands/main.js",
+    "enigma binary must point at the compiled entrypoint"
   );
 });
 

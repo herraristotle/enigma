@@ -174,7 +174,7 @@ export function runSsrfScan(
   return results;
 }
 
-async function main() {
+export async function main() {
   const targetUrl = process.argv[2];
   const xmlrpcPingback = process.argv.slice(3).includes("--xmlrpc-pingback");
   // XML-RPC mode needs no injection parameter — the payload is a POST body.

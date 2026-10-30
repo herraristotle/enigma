@@ -8,7 +8,10 @@ import { DecisionTreeLogger } from "../visualization/logger.ts";
 import { LearningLoop, rotorToPhase, type LearningLoopSnapshot } from "../engines/mutation/learning-loop.ts";
 import { buildMxssDetectionScript, analyzeMxss, type MxssVerdict } from "../engines/mutation/mxss.ts";
 import { type StoredXssStage, type WorkflowRunResult, validateWorkflow, transformPayload } from "./workflow.ts";
-import type { Browser, Page, Response } from "playwright";
+// Static, not dynamic: the CLI is distributed as a compiled Node app, and a
+// dynamic `import("playwright")` of a dependency is resolved from the snapshot
+// rather than node_modules when bundled. Static keeps one resolution path.
+import { chromium, type Browser, type Page, type Response } from "playwright";
 
 export interface BrowserObservation {
   statusCode: number;
@@ -404,7 +407,6 @@ export class PlaywrightBrowserAdapter implements BrowserAdapter {
   private lastOptions: RunOptions = {};
 
   async init(headless = true): Promise<void> {
-    const { chromium } = await import("playwright");
     this.browser = await chromium.launch({
       headless,
       args: [

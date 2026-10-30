@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Fixed
+- Release artifacts were unusable. The workflow packaged `cli/commands/run.ts` instead of the `main.ts` router, so `enigma ssrf …` and `enigma payloads` parsed `ssrf`/`payloads` as the target URL, and the binary itself died on start (`UNEXPECTED-20: no source or bytecode for /snapshot/commands/run.ts`).
+- `enigma run` read `run` as the target because the router never removed its own token from `process.argv`.
+- Playwright is imported statically. It was loaded with a dynamic `import()`, which resolves from the bundler snapshot rather than `node_modules`; a pkg build cannot host Playwright at all (`ERR_INSPECTOR_NOT_AVAILABLE`, missing `browsers.json`), so releases are now a compiled-Node tarball instead of a single-file binary.
+
+### Changed
+- One `enigma` binary with subcommands (`run`, `ssrf run|discover|blind`, `payloads`); the phantom `enigma-ssrf` bin declared only in a test is gone, and `bin` points at the compiled `dist/cli/commands/main.js`.
+- `tsconfig.pkg.json` → `tsconfig.build.json` (`rewriteRelativeImportExtensions`), so `.ts` specifiers stay valid in source and emit as `.js`.
+
 ### Added
 - Machine batch payload command (`cli/commands/payloads.ts`, bin `enigma-payloads`) — deterministic JSON candidates per context for the Mastermind-Ai Python bridge (`mastermind_core/enigma_bridge.py`)
 - SSRF network scanning with port and service identification

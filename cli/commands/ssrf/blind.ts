@@ -142,7 +142,7 @@ export function runBlindSsrfScan(
   ];
 }
 
-async function main() {
+export async function main() {
   const targetUrl = process.argv[2];
   const parameter = process.argv[3];
   if (!targetUrl || !parameter) {

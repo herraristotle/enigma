@@ -34,26 +34,10 @@ jobs:
       - run: npm run typecheck
 
   package:
-    name: Package (${{ matrix.asset }})
+    name: Package (dist tarball)
     if: startsWith(github.ref, 'refs/tags/v')
     needs: []
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            target: node24-win-x64
-            asset: enigma-win-x64.exe
-          - os: ubuntu-latest
-            target: node24-linux-x64
-            asset: enigma-linux-x64
-          - os: macos-latest
-            target: node24-macos-x64
-            asset: enigma-macos-x64
-          - os: macos-latest
-            target: node24-macos-arm64
-            asset: enigma-macos-arm64
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -61,15 +45,30 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - name: Build standalone executable
-        run: npx --yes @yao-pkg/pkg@6.23.0 cli/commands/run.ts --targets ${{ matrix.target }} --output dist/${{ matrix.asset }}
-      - name: Smoke-test executable
-        shell: bash
-        run: ./dist/${{ matrix.asset }} --help || true
+      - name: Compile the CLI
+        run: npm run build
+      - name: Smoke-test every subcommand
+        # A broken entrypoint must fail here, not at the target. `run`/`ssrf run`
+        # only print usage without a target, so this needs no browser.
+        run: |
+          set -e
+          node dist/cli/commands/main.js payloads --context=html --max=1 | head -5
+          node dist/cli/commands/main.js ssrf | head -1
+          node dist/cli/commands/main.js run | head -1
+      - name: Assemble the release tarball
+        # Not a pkg single-file binary: Playwright reads browser metadata and uses
+        # the inspector from node_modules at runtime, and a pkg snapshot has
+        # neither (ERR_INSPECTOR_NOT_AVAILABLE). The tarball keeps Playwright
+        # resolvable and runs on any arch with Node 24.
+        run: |
+          set -e
+          mkdir -p release/enigma
+          cp -r dist package.json package-lock.json README.md release/enigma/
+          tar -czf "release/enigma-${GITHUB_REF_NAME#v}.tar.gz" -C release enigma
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.asset }}
-          path: dist/${{ matrix.asset }}
+          name: enigma-dist
+          path: release/*.tar.gz
           if-no-files-found: error
 
   release:

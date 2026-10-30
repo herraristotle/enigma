@@ -1,6 +1,6 @@
 import { EnigmaRunner, PlaywrightBrowserAdapter, type RunOptions } from "../../core/runner/index.ts";
 
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
   const target = process.argv[2];
   const parameter = process.argv[3];
   
@@ -77,4 +77,6 @@ async function main(): Promise<void> {
   }
 }
 
-void main();
+if (import.meta.url === `file://${process.argv[1]}`) {
+  void main();
+}
