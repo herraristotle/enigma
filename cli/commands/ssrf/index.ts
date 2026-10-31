@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node --experimental-strip-types
+#!/usr/bin/env node
 async function main(): Promise<void> {
   const command = process.argv[2];
 

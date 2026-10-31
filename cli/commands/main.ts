@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node --experimental-strip-types
+#!/usr/bin/env node
 // Single entrypoint: `enigma <run|ssrf|payloads>`.
 //
 // The subcommand modules export `main()` and keep an
