@@ -96,14 +96,16 @@ jobs:
           '
 
       - name: Pack
-        # npm names the file after the package (scope stripped):
-        # @mastermind/enigma -> mastermind-enigma-<ver>.tgz. The release asset is
-        # named enigma-<ver>.tgz instead; `npm install -g <url>` reads the package
-        # name from inside the tarball, so the filename is free to be the tool name.
+        # Versionless asset name on purpose: consumers install via
+        #   .../releases/latest/download/enigma.tgz
+        # and GitHub's `latest` only rewrites the TAG, not the filename — a name
+        # containing the version could never be fetched without knowing it first.
+        # npm reads the package name from inside the tarball, so the filename is
+        # free to be the tool name.
         run: |
           mkdir -p release
           npm pack --pack-destination release
-          mv release/*.tgz "release/enigma-${GITHUB_REF_NAME#v}.tgz"
+          mv release/*.tgz "release/enigma.tgz"
 
       # Parity with the only real consumer (Artex): install the packed tarball
       # globally, then launch a browser from THAT tree. This catches a bad
