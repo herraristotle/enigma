@@ -1,4 +1,4 @@
-import { EnigmaRunner, PlaywrightBrowserAdapter, type RunOptions } from "../../core/runner/index.ts";
+import { EnigmaRunner, PuppeteerBrowserAdapter, type RunOptions } from "../../core/runner/index.ts";
 
 export async function main(): Promise<void> {
   const target = process.argv[2];
@@ -33,11 +33,11 @@ export async function main(): Promise<void> {
     else if (arg.startsWith("--inject-header=")) options.injectHeader = arg.split("=")[1];
   }
 
-  const adapter = new PlaywrightBrowserAdapter();
+  const adapter = new PuppeteerBrowserAdapter();
   try {
     await adapter.init(!process.argv.includes("--no-headless"));
   } catch (error) {
-    console.error(`failed to initialize Playwright runtime: ${String(error)}`);
+    console.error(`failed to initialize browser runtime: ${String(error)}`);
     process.exitCode = 1;
     return;
   }

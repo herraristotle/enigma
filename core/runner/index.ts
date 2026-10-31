@@ -9,9 +9,19 @@ import { LearningLoop, rotorToPhase, type LearningLoopSnapshot } from "../engine
 import { buildMxssDetectionScript, analyzeMxss, type MxssVerdict } from "../engines/mutation/mxss.ts";
 import { type StoredXssStage, type WorkflowRunResult, validateWorkflow, transformPayload } from "./workflow.ts";
 // Static, not dynamic: the CLI is distributed as a compiled Node app, and a
-// dynamic `import("playwright")` of a dependency is resolved from the snapshot
-// rather than node_modules when bundled. Static keeps one resolution path.
-import { chromium, type Browser, type Page, type Response } from "playwright";
+// dynamic `import("puppeteer-core")` of a dependency is resolved from the
+// snapshot rather than node_modules when bundled. Static keeps one resolution path.
+//
+// puppeteer-core, not playwright: it never bundles a browser, so it reuses the
+// single chromium the image already has (CHROME_PATH) instead of installing a
+// second ~400MB copy under Playwright's revision-keyed cache. The API mapping:
+//   page.route(...)            -> setRequestInterception + request.continue/abort
+//   page.addInitScript(...)    -> evaluateOnNewDocument
+//   page.unrouteAll()          -> setRequestInterception(false)
+//   page.on('framenavigated')  -> page.on('framenavigated')
+//   request.allHeaders()       -> request.headers()
+//   response.headers()         -> response.headers()
+import puppeteer, { type Browser, type Page, type HTTPResponse } from "puppeteer-core";
 
 export interface BrowserObservation {
   statusCode: number;
@@ -399,7 +409,13 @@ export class EnigmaRunner {
   }
 }
 
-export class PlaywrightBrowserAdapter implements BrowserAdapter {
+/**
+ * Browser adapter backed by puppeteer-core.
+ *
+ * The class name is kept (aliased as PuppeteerBrowserAdapter below) because the
+ * adapter is referenced from the CLI and tests; only the engine underneath changed.
+ */
+export class PuppeteerBrowserAdapter implements BrowserAdapter {
   private browser?: Browser;
   private page?: Page;
   private lastTarget = "https://example.com";
@@ -407,7 +423,11 @@ export class PlaywrightBrowserAdapter implements BrowserAdapter {
   private lastOptions: RunOptions = {};
 
   async init(headless = true): Promise<void> {
-    this.browser = await chromium.launch({
+    // puppeteer-core ships no browser: point it at the one on the box. CHROME_PATH
+    // wins, then the usual PATH names, so the image can set one env var.
+    this.browser = await puppeteer.launch({
+      executablePath: process.env.CHROME_PATH || undefined,
+      channel: process.env.CHROME_PATH ? undefined : "chrome",
       headless,
       args: [
         "--no-sandbox",
@@ -421,18 +441,18 @@ export class PlaywrightBrowserAdapter implements BrowserAdapter {
   }
 
   async injectHooks(script: string): Promise<void> {
-    if (!this.page) throw new Error("PlaywrightBrowserAdapter.init() must run before injectHooks()");
-    await this.page.addInitScript(script);
+    if (!this.page) throw new Error("PuppeteerBrowserAdapter.init() must run before injectHooks()");
+    await this.page.evaluateOnNewDocument(script);
   }
 
   async evaluate(script: string): Promise<unknown> {
-    if (!this.page) throw new Error("PlaywrightBrowserAdapter.init() must run before evaluate()");
+    if (!this.page) throw new Error("PuppeteerBrowserAdapter.init() must run before evaluate()");
     return this.page.evaluate(script);
   }
 
   async navigate(target: string, parameter: string, payload: string, options: RunOptions = {}): Promise<BrowserObservation> {
     const page = this.page;
-    if (!page) throw new Error("PlaywrightBrowserAdapter.init() must run before navigate()");
+    if (!page) throw new Error("PuppeteerBrowserAdapter.init() must run before navigate()");
 
     this.lastTarget = target;
     this.lastParameter = parameter;
@@ -448,14 +468,14 @@ export class PlaywrightBrowserAdapter implements BrowserAdapter {
         if (!name) return null;
         return { name, value, domain: urlObj.hostname };
       }).filter((cookie): cookie is { name: string; value: string; domain: string } => cookie !== null);
-      if (cookies.length > 0) await page.context().addCookies(cookies);
+      if (cookies.length > 0) await page.setCookie(...cookies);
     }
 
     let executed = false;
     let cdpNavigated = false;
-    
+
     page.removeAllListeners("dialog");
-    
+
     page.on("dialog", async dialog => {
       executed = true;
       await dialog.dismiss();
@@ -468,25 +488,26 @@ export class PlaywrightBrowserAdapter implements BrowserAdapter {
       }
     });
 
-    await page.unrouteAll({ behavior: "wait" });
-    await page.route("**/*", async route => {
-      const request = route.request();
+    // Puppeteer has no per-handler unroute: toggle interception off, which drops
+    // the previous handler, then re-enable for this navigation.
+    await page.setRequestInterception(false);
+    await page.setRequestInterception(true);
+    page.on("request", async request => {
       if (request.url().startsWith("javascript:")) {
         cdpNavigated = true;
         executed = true;
-        await route.abort().catch(() => {});
+        await request.abort().catch(() => {});
       } else {
         if (options.injectHeader && parameter === options.injectHeader) {
-          const headers = await request.allHeaders();
-          headers[options.injectHeader.toLowerCase()] = payload;
-          await route.continue({ headers }).catch(() => {});
+          const headers = { ...request.headers(), [options.injectHeader.toLowerCase()]: payload };
+          await request.continue({ headers }).catch(() => {});
         } else {
-          await route.continue().catch(() => {});
+          await request.continue().catch(() => {});
         }
       }
     });
 
-    let response: Response | null = null;
+    let response: HTTPResponse | null = null;
     let responseBody = "";
     const url = new URL(target);
 
@@ -513,7 +534,7 @@ export class PlaywrightBrowserAdapter implements BrowserAdapter {
           });
         }, { action: url.toString(), data: injectData.toString() });
 
-        response = await page.goto(options.observeUrl, { waitUntil: "networkidle" });
+        response = await page.goto(options.observeUrl, { waitUntil: "networkidle0" });
       } else {
         response = await page.goto(url.toString(), { waitUntil: "domcontentloaded" });
       }

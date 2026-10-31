@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as http from "node:http";
-import { PlaywrightBrowserAdapter } from "../core/runner/index.ts";
+import { PuppeteerBrowserAdapter } from "../core/runner/index.ts";
 
-test("Playwright adapter injects hooks and observes a local page", async () => {
+test("Puppeteer adapter injects hooks and observes a local page", async () => {
   const server = http.createServer((req, res) => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     res.writeHead(200, {
@@ -19,7 +19,7 @@ test("Playwright adapter injects hooks and observes a local page", async () => {
 
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("test server failed to bind");
-  const adapter = new PlaywrightBrowserAdapter();
+  const adapter = new PuppeteerBrowserAdapter();
 
   try {
     await adapter.init();
