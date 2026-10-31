@@ -84,7 +84,14 @@ jobs:
           '
 
       - name: Pack
-        run: mkdir -p release && npm pack --pack-destination release
+        # npm names the file after the package (scope stripped):
+        # @mastermind/enigma -> mastermind-enigma-<ver>.tgz. The release asset is
+        # named enigma-<ver>.tgz instead; `npm install -g <url>` reads the package
+        # name from inside the tarball, so the filename is free to be the tool name.
+        run: |
+          mkdir -p release
+          npm pack --pack-destination release
+          mv release/*.tgz "release/enigma-${GITHUB_REF_NAME#v}.tgz"
 
       # Parity with the only real consumer (Artex): install the packed tarball
       # globally, then launch a browser from THAT tree. This catches a bad
