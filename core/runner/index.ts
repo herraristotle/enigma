@@ -13,7 +13,7 @@ import { type StoredXssStage, type WorkflowRunResult, validateWorkflow, transfor
 // snapshot rather than node_modules when bundled. Static keeps one resolution path.
 //
 // puppeteer-core, not playwright: it never bundles a browser, so it reuses the
-// single chromium the image already has (CHROME_PATH) instead of installing a
+// single chromium the image already has (CHROMIUM) instead of installing a
 // second ~400MB copy under Playwright's revision-keyed cache. The API mapping:
 //   page.route(...)            -> setRequestInterception + request.continue/abort
 //   page.addInitScript(...)    -> evaluateOnNewDocument
@@ -423,11 +423,11 @@ export class PuppeteerBrowserAdapter implements BrowserAdapter {
   private lastOptions: RunOptions = {};
 
   async init(headless = true): Promise<void> {
-    // puppeteer-core ships no browser: point it at the one on the box. CHROME_PATH
-    // wins, then the usual PATH names, so the image can set one env var.
+    // puppeteer-core ships no browser: point it at the Chromium on the box.
+    // `channel` is deliberately not used — its values are chrome / chrome-beta /
+    // chrome-canary / chrome-dev, all Google Chrome, none of which is Chromium.
     this.browser = await puppeteer.launch({
-      executablePath: process.env.CHROME_PATH || undefined,
-      channel: process.env.CHROME_PATH ? undefined : "chrome",
+      executablePath: process.env.CHROMIUM || "/usr/bin/chromium",
       headless,
       args: [
         "--no-sandbox",

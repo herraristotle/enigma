@@ -28,14 +28,14 @@ jobs:
       - run: npm ci
       # puppeteer-core bundles no browser: the adapter needs one on the runner.
       # Ubuntu: apt chromium. macOS: the preinstalled Google Chrome. Windows: the
-      # preinstalled Chrome/Edge. CHROME_PATH is what the adapter reads.
+      # preinstalled Chrome/Edge. CHROMIUM is what the adapter reads.
       - run: sudo apt-get update && sudo apt-get install -y chromium
         if: runner.os == 'Linux'
-      - run: echo "CHROME_PATH=$(command -v chromium || command -v chromium-browser)" >> "$GITHUB_ENV"
+      - run: echo "CHROMIUM=$(command -v chromium || command -v chromium-browser)" >> "$GITHUB_ENV"
         if: runner.os == 'Linux'
-      - run: echo "CHROME_PATH=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" >> "$GITHUB_ENV"
+      - run: echo "CHROMIUM=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" >> "$GITHUB_ENV"
         if: runner.os == 'macOS'
-      - run: echo "CHROME_PATH=C:\Program Files\Google\Chrome\Application\chrome.exe" >> "$env:GITHUB_ENV"
+      - run: echo "CHROMIUM=C:\Program Files\Google\Chrome\Application\chrome.exe" >> "$env:GITHUB_ENV"
         if: runner.os == 'Windows'
         shell: pwsh
       - run: npm test
@@ -65,7 +65,7 @@ jobs:
 
       # ---------------------------------------------------------------------
       # The browser is puppeteer-core + a system Chromium: it never downloads a
-      # ~400MB browser of its own, and the adapter reads CHROME_PATH.
+      # ~400MB browser of its own, and the adapter reads CHROMIUM.
       # ---------------------------------------------------------------------
       - name: Gate — browser launches and fires a dialog
         run: |
@@ -73,13 +73,13 @@ jobs:
           sudo apt-get update && sudo apt-get install -y chromium
           # Two things: export for THIS step (GITHUB_ENV only affects later
           # steps), and GITHUB_ENV so the global-install gate below inherits it.
-          export CHROME_PATH="$(command -v chromium || command -v chromium-browser)"
-          echo "CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
+          export CHROMIUM="$(command -v chromium || command -v chromium-browser)"
+          echo "CHROMIUM=$CHROMIUM" >> "$GITHUB_ENV"
           node -e '
             (async () => {
               const puppeteer = require("puppeteer-core");
               const browser = await puppeteer.launch({
-                executablePath: process.env.CHROME_PATH,
+                executablePath: process.env.CHROMIUM,
                 headless: true,
                 args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
               }).catch((e) => { console.error("launch failed:", e.message); return null; });
@@ -126,7 +126,7 @@ jobs:
             (async () => {
               const puppeteer = require(path.join(root, 'node_modules/puppeteer-core'));
               const browser = await puppeteer.launch({
-                executablePath: process.env.CHROME_PATH,
+                executablePath: process.env.CHROMIUM,
                 headless: true,
                 args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
               }).catch(() => null);
