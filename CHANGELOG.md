@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+## [1.0.2]
+
+### Changed
+- Release asset is `mastermind-enigma-<ver>.tgz`, installed with `npm install -g <tarball>`.
+  npm pulls the package's dependencies and links the `enigma` bin, so the asset no longer
+  requires the consumer to run `npm install` afterwards (the previous `dist`-only tarball did).
+- `playwright` pinned to one exact version instead of `^1.58.0`, so the browser revision this
+  package asks for matches the one Artex installs once into a shared
+  `PLAYWRIGHT_BROWSERS_PATH`. A range could resolve to a different revision and fail at
+  launch — which is now reported, not silent.
+- CI gates the release on what broke silently before: Playwright launches a real browser and
+  fires an alert, and a global install of the packed tarball both runs by name and launches a
+  browser from the installed tree.
+
+## [1.0.1]
+
 ### Fixed
 - Release artifacts were unusable. The workflow packaged `cli/commands/run.ts` instead of the `main.ts` router, so `enigma ssrf …` and `enigma payloads` parsed `ssrf`/`payloads` as the target URL, and the binary itself died on start (`UNEXPECTED-20: no source or bytecode for /snapshot/commands/run.ts`).
 - `enigma run` read `run` as the target because the router never removed its own token from `process.argv`.

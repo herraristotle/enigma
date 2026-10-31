@@ -34,7 +34,7 @@ jobs:
       - run: npm run typecheck
 
   package:
-    name: Package (dist tarball)
+    name: Package (npm tarball)
     if: startsWith(github.ref, 'refs/tags/v')
     needs: []
     runs-on: ubuntu-latest
@@ -48,27 +48,73 @@ jobs:
       - name: Compile the CLI
         run: npm run build
       - name: Smoke-test every subcommand
-        # A broken entrypoint must fail here, not at the target. `run`/`ssrf run`
-        # only print usage without a target, so this needs no browser.
+        # A broken entrypoint must fail here, not at the target.
         run: |
           set -e
           node dist/cli/commands/main.js payloads --context=html --max=1 | head -5
           node dist/cli/commands/main.js ssrf | head -1
           node dist/cli/commands/main.js run | head -1
-      - name: Assemble the release tarball
-        # Not a pkg single-file binary: Playwright reads browser metadata and uses
-        # the inspector from node_modules at runtime, and a pkg snapshot has
-        # neither (ERR_INSPECTOR_NOT_AVAILABLE). The tarball keeps Playwright
-        # resolvable and runs on any arch with Node 24.
+
+      # ---------------------------------------------------------------------
+      # Why a tarball and not a single-file binary: the runner drives Playwright,
+      # which resolves JS by runtime path and needs browsers.json. A @yao-pkg/pkg
+      # snapshot cannot host it (ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING, missing
+      # browsers.json) and a bun --compile bundle only finds playwright when
+      # node_modules sits beside the binary. npm i -g installs the tarball's
+      # dependencies from the registry and links the bin — nothing to stage.
+      # ---------------------------------------------------------------------
+      - name: Gate — Playwright launches from the package
         run: |
           set -e
-          mkdir -p release/enigma
-          cp -r dist package.json package-lock.json README.md release/enigma/
-          tar -czf "release/enigma-${GITHUB_REF_NAME#v}.tar.gz" -C release enigma
+          npx playwright install --with-deps chromium
+          node -e '
+            (async () => {
+              const { chromium } = require("playwright");
+              const browser = await chromium.launch({ headless: true }).catch(() => null);
+              if (!browser) { console.error("playwright launch failed"); process.exit(1); }
+              const page = await browser.newPage();
+              let fired = false;
+              page.on("dialog", async (d) => { fired = true; await d.dismiss(); });
+              await page.goto("data:text/html,<script>alert(1)</script>").catch(() => {});
+              await page.waitForTimeout(500);
+              await browser.close();
+              if (!fired) { console.error("alert dialog never fired"); process.exit(1); }
+              console.log("playwright alert confirmation ok");
+            })().catch((e) => { console.error(e); process.exit(1); });
+          '
+
+      - name: Pack
+        run: mkdir -p release && npm pack --pack-destination release
+
+      # Parity with the only real consumer (Artex): install the packed tarball
+      # globally, then launch a browser from THAT tree. This catches a bad
+      # `files` allowlist or a dependency missing from `dependencies`, both of
+      # which used to ship silently.
+      - name: Gate — global install of the tarball runs and drives a browser
+        run: |
+          set -e
+          PREFIX="$(mktemp -d)"
+          npm install -g --prefix "$PREFIX" ./release/*.tgz
+          ROOT="$PREFIX/lib/node_modules/@mastermind/enigma"
+          "$PREFIX/bin/enigma" payloads --context=html --max=1 >/dev/null
+          "$PREFIX/bin/enigma" ssrf | head -1
+          node -e "
+            const path = require('path'), fs = require('fs');
+            const root = '$ROOT';
+            fs.accessSync(path.join(root, 'dist/cli/commands/main.js'));
+            (async () => {
+              const { chromium } = require(path.join(root, 'node_modules/playwright'));
+              const browser = await chromium.launch({ headless: true }).catch(() => null);
+              if (!browser) { console.error('installed copy cannot launch a browser'); process.exit(1); }
+              await browser.close();
+              console.log('installed copy launches a browser');
+            })().catch((e) => { console.error(e); process.exit(1); });
+          "
+
       - uses: actions/upload-artifact@v4
         with:
-          name: enigma-dist
-          path: release/*.tar.gz
+          name: enigma-tarball
+          path: release/*.tgz
           if-no-files-found: error
 
   release:
